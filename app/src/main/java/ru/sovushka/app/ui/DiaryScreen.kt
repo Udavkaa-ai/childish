@@ -3,6 +3,10 @@ package ru.sovushka.app.ui
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.webkit.CookieManager
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
@@ -245,44 +249,119 @@ private fun dayTitle(date: String, today: String): String {
     }.getOrDefault(date)
 }
 
-/** Вход на school.mos.ru в встроенном браузере: после входа забираем cookie aupd_token. */
+/** Вход на school.mos.ru во встроенном браузере: после входа забираем токен (cookie aupd_token). */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun MeshLoginScreen(vm: AppViewModel) {
     val g = LocalContext.current.graph
     var loading by remember { mutableStateOf(true) }
+    var url by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var desktop by remember { mutableStateOf(false) }
+    var web by remember { mutableStateOf<WebView?>(null) }
+    var done by remember { mutableStateOf(false) }
+
+    fun accept(token: String) {
+        if (done) return
+        done = true
+        g.settings.update { it.copy(meshToken = token, meshStudentId = -1) }
+        vm.back()
+    }
+
     GradientScreen {
         Column(Modifier.fillMaxSize()) {
-            TopBar("Вход в МЭШ", onBack = { vm.back() })
+            TopBar("Вход в МЭШ", onBack = { vm.back() }) {
+                Text("⟳", fontSize = 26.sp, modifier = Modifier.clickable { error = null; web?.reload() }.padding(10.dp))
+            }
             Hint("Войдите как обычно на mos.ru (можно через Госуслуги). Пароль вводится на сайте — приложение его не видит.", Modifier.padding(horizontal = 16.dp))
-            if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(url.removePrefix("https://").take(60), fontSize = 12.sp, color = Palette.Muted, modifier = Modifier.weight(1f))
+                TextButton(onClick = {
+                    desktop = !desktop
+                    web?.let { w ->
+                        w.settings.userAgentString = if (desktop) DESKTOP_UA else MeshClient.USER_AGENT
+                        error = null
+                        w.loadUrl(LOGIN_URLS.first())
+                    }
+                }) { Text(if (desktop) "📱 Мобильная версия" else "🖥 Версия для компьютера", fontSize = 13.sp) }
+            }
+            error?.let { Text("⚠️ $it", color = Palette.Bad, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
+            if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp))
             AndroidView(
                 modifier = Modifier.weight(1f).fillMaxWidth().navigationBarsPadding(),
                 factory = { ctx ->
                     WebView(ctx).apply {
+                        web = this
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
-                        settings.userAgentString = settings.userAgentString.replace("; wv", "")
+                        @Suppress("DEPRECATION")
+                        settings.databaseEnabled = true
+                        settings.javaScriptCanOpenWindowsAutomatically = true
+                        settings.loadWithOverviewMode = true
+                        settings.useWideViewPort = true
+                        settings.builtInZoomControls = true
+                        settings.displayZoomControls = false
+                        // Подписываемся обычным мобильным Chrome: некоторые сайты не работают со встроенным браузером.
+                        settings.userAgentString = MeshClient.USER_AGENT
                         CookieManager.getInstance().setAcceptCookie(true)
                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                        webChromeClient = WebChromeClient()
                         webViewClient = object : WebViewClient() {
-                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) { loading = true }
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                loading = false
-                                val token = findToken()
-                                if (token != null) {
-                                    g.settings.update { it.copy(meshToken = token, meshStudentId = -1) }
-                                    vm.back()
+                            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                val u = request?.url ?: return false
+                                // Ссылки на приложения (intent://, dnevnik-mes://) встроенный браузер открыть не может — пропускаем.
+                                return u.scheme != "http" && u.scheme != "https"
+                            }
+
+                            override fun onPageStarted(view: WebView?, u: String?, favicon: Bitmap?) {
+                                loading = true; url = u.orEmpty()
+                            }
+
+                            override fun onPageFinished(view: WebView?, u: String?) {
+                                loading = false; url = u.orEmpty()
+                                findToken()?.let { accept(it); return }
+                                // Запасной путь: токен может лежать в localStorage сайта школы.
+                                if (u.orEmpty().contains("school.mos.ru") || u.orEmpty().contains("dnevnik.mos.ru")) {
+                                    view?.evaluateJavascript(FIND_TOKEN_JS) { v ->
+                                        val t = v?.trim('"').orEmpty()
+                                        if (t.count { it == '.' } == 2 && t.length > 40) accept(t)
+                                    }
+                                }
+                            }
+
+                            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, err: WebResourceError?) {
+                                if (request?.isForMainFrame == true) {
+                                    loading = false
+                                    error = "страница не загрузилась: ${err?.description} (${err?.errorCode})"
+                                }
+                            }
+
+                            override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, resp: WebResourceResponse?) {
+                                if (request?.isForMainFrame != true) return
+                                val code = resp?.statusCode ?: 0
+                                if (code >= 400 && request.url.toString().startsWith(LOGIN_URLS.first())) {
+                                    view?.loadUrl(LOGIN_URLS.last()) // прямой адрес входа не сработал — открываем главную
+                                } else {
+                                    error = "сайт ответил ошибкой $code"
                                 }
                             }
                         }
-                        loadUrl(MeshClient.LOGIN_URL)
+                        loadUrl(LOGIN_URLS.first())
                     }
                 },
+                onRelease = { it.destroy() },
             )
         }
     }
 }
+
+/** Сразу на вход через mos.ru (СУДИР); главная school.mos.ru — запасной вариант. */
+private val LOGIN_URLS = listOf("https://school.mos.ru/v3/auth/sudir/login", MeshClient.LOGIN_URL)
+
+private const val DESKTOP_UA =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+private const val FIND_TOKEN_JS = """(function(){try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);var v=localStorage.getItem(k)||'';if(/token/i.test(k)&&/^eyJ[\w-]+\.[\w-]+\.[\w-]+$/.test(v))return v;}}catch(e){}return '';})()"""
 
 private fun findToken(): String? {
     val cm = CookieManager.getInstance()
