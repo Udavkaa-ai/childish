@@ -78,7 +78,10 @@ suspend fun syncDiary(g: AppGraph): String? {
         }
         null
     } catch (e: MeshAuthException) {
-        "Вход в МЭШ устарел — войдите заново."
+        val exp = MeshClient.tokenExpiry(g.settings.value.meshToken)
+        val expired = exp != null && exp < System.currentTimeMillis()
+        (if (expired) "Ключ МЭШ истёк " + SimpleDateFormat("d MMMM, HH:mm", Locale("ru")).format(Date(exp!!)) + "." else "МЭШ не принял ключ.") +
+            " Скопируйте свежий aupd_token с school.mos.ru и подключите заново.\n\nПодробности: ${e.message}"
     } catch (e: Exception) {
         e.message ?: e.toString()
     }
@@ -117,7 +120,21 @@ fun DiaryScreen(vm: AppViewModel) {
                 Modifier.weight(1f).navigationBarsPadding().padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                error?.let { e -> item { CardBox { Text("⚠️ $e", color = Palette.Bad) } } }
+                error?.let { e ->
+                    item {
+                        CardBox {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("⚠️ $e", color = Palette.Bad)
+                                if (prefs.meshToken.isNotBlank()) {
+                                    PillButton("🔑 Подключить заново") {
+                                        g.settings.update { it.copy(meshToken = "", meshStudentId = -1) }
+                                        error = null
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 if (prefs.meshToken.isBlank()) {
                     item {
                         NikaSays("Подключи школьный дневник — я буду знать, что задали по английскому!", NikaMood.WAVE, false, nikaHeight = 150.dp)

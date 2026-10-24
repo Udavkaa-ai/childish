@@ -144,9 +144,9 @@ fun SettingsScreen(vm: AppViewModel) {
                     OutlinedTextField(p.youngerName, { v -> set { it.copy(youngerName = v) } }, label = { Text("Младшая (пусто — скрыть)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
 
-                Section("🧠 Нейросеть") {
+                Section("🧠 Нейросеть — уроки по фото и разговор с Никой") {
                     Radio("GigaChat (Сбер) — есть бесплатный лимит для физлиц", p.provider == Prefs.PROVIDER_GIGACHAT) { set { it.copy(provider = Prefs.PROVIDER_GIGACHAT) } }
-                    Radio("YandexGPT (Yandex Cloud)", p.provider == Prefs.PROVIDER_YANDEX) { set { it.copy(provider = Prefs.PROVIDER_YANDEX) } }
+                    Radio("YandexGPT (Yandex Cloud, нужна роль ai.languageModels.user)", p.provider == Prefs.PROVIDER_YANDEX) { set { it.copy(provider = Prefs.PROVIDER_YANDEX) } }
                     Radio("Без нейросети (только готовые темы и ручные слова)", p.provider == Prefs.PROVIDER_NONE) { set { it.copy(provider = Prefs.PROVIDER_NONE) } }
                     if (p.provider == Prefs.PROVIDER_GIGACHAT) {
                         Hint("developers.sber.ru → Studio → проект GigaChat API → «Настройки API» → «Получить ключ». Скопируйте Authorization Key.")
@@ -183,7 +183,7 @@ fun SettingsScreen(vm: AppViewModel) {
                     }
                 }
 
-                Section("🔊 Голос") {
+                Section("🔊 Голос Ники — озвучка") {
                     Radio("Голос телефона (работает без интернета)", p.voice == Prefs.VOICE_ANDROID) { set { it.copy(voice = Prefs.VOICE_ANDROID) } }
                     Radio("Yandex SpeechKit (нужен ключ Yandex Cloud)", p.voice == Prefs.VOICE_YANDEX) { set { it.copy(voice = Prefs.VOICE_YANDEX) } }
                     if (p.voice == Prefs.VOICE_YANDEX) {

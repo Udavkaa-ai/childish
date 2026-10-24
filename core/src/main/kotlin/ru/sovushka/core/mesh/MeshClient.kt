@@ -18,8 +18,9 @@ class MeshException(message: String, cause: Throwable? = null) : Exception(messa
 @Serializable
 data class MeshStudent(val id: Long, val personGuid: String, val name: String, val className: String = "")
 
+/** web = true — ключ подошёл только к веб-версии дневника (ключ с сайта school.mos.ru). */
 @Serializable
-data class MeshAccount(val profileId: Long, val role: String, val students: List<MeshStudent>)
+data class MeshAccount(val profileId: Long, val role: String, val students: List<MeshStudent>, val web: Boolean = false)
 
 /**
  * Клиент мобильного API «Московской электронной школы» (school.mos.ru).
@@ -96,7 +97,7 @@ class MeshClient(
             http.newCall(req).execute().use { r ->
                 val body = r.body?.string().orEmpty()
                 when {
-                    r.code == 401 || r.code == 403 -> throw MeshAuthException("МЭШ: нужно войти заново (${r.code})")
+                    r.code == 401 || r.code == 403 -> throw MeshAuthException("${req.url.host}${req.url.encodedPath} → ${r.code}")
                     !r.isSuccessful -> throw MeshException("МЭШ: ошибка ${r.code} ${body.take(200)}")
                     else -> body
                 }
@@ -126,10 +127,33 @@ class MeshClient(
         null
     }
 
-    suspend fun account(): MeshAccount {
+    /** Найти профиль и учеников: сначала мобильный API, при отказе — веб-версия дневника. */
+    suspend fun account(): MeshAccount = try {
+        mobileAccount()
+    } catch (mobile: MeshAuthException) {
+        try {
+            webAccount()
+        } catch (web: MeshAuthException) {
+            throw MeshAuthException("МЭШ не принял ключ: ${mobile.message}; ${web.message}")
+        }
+    }
+
+    private suspend fun mobileAccount(): MeshAccount {
         val infos = parse<List<ProfileInfo>>(get(request("$dnevnik/acl/api/users/profile_info", headers = mapOf("partner-source-id" to "MOBILE"))))
         val info = infos.firstOrNull() ?: throw MeshException("МЭШ: у аккаунта нет профиля")
         val fp = parse<FamilyProfile>(get(request("$school/api/family/mobile/v1/profile", headers = family(info.id))))
+        return MeshAccount(info.id, info.type.ifBlank { fp.profile?.type.orEmpty() }, students(fp))
+    }
+
+    private suspend fun webAccount(): MeshAccount {
+        val fp = parse<FamilyProfile>(get(request(
+            "$dnevnik/api/family/web/v1/profile", mapOf("nocache" to "true"), mapOf("X-mes-subsystem" to "familyweb"),
+        )))
+        val profile = fp.profile ?: throw MeshException("МЭШ: в ответе нет профиля")
+        return MeshAccount(profile.id ?: 0, profile.type.orEmpty().ifBlank { "parent" }, students(fp), web = true)
+    }
+
+    private fun students(fp: FamilyProfile): List<MeshStudent> {
         val people = fp.children.ifEmpty { listOfNotNull(fp.profile) }
         val students = people.mapNotNull { p ->
             val id = p.id ?: return@mapNotNull null
@@ -141,7 +165,7 @@ class MeshClient(
             )
         }
         if (students.isEmpty()) throw MeshException("МЭШ: в профиле не найдено учеников")
-        return MeshAccount(info.id, info.type.ifBlank { fp.profile?.type.orEmpty() }, students)
+        return students
     }
 
     /** Загрузить расписание, оценки, средние баллы и домашние задания. */
@@ -156,12 +180,22 @@ class MeshClient(
         val marksFrom = today.minusDays(60).toString()
         val h = family(account.profileId)
 
+        // В веб-режиме берём расписание за месяц назад: из него же достаём оценки.
+        val eventsFrom = if (account.web) today.minusDays(30).toString() else scheduleFrom
         val lessons = if (student.personGuid.isNotBlank()) {
-            val ev = parse<Events>(get(request(
-                "$school/api/eventcalendar/v1/api/events",
-                mapOf("person_ids" to student.personGuid, "begin_date" to scheduleFrom, "end_date" to scheduleTo, "expand" to "marks,homework"),
-                h + ("x-mes-role" to account.role.ifBlank { "parent" }),
-            )))
+            val ev = parse<Events>(get(if (account.web) {
+                request(
+                    "$dnevnik/api/eventcalendar/v1/api/events",
+                    mapOf("person_ids" to student.personGuid, "begin_date" to eventsFrom, "end_date" to scheduleTo, "expand" to "marks,homework"),
+                    mapOf("X-Mes-Subsystem" to "familyweb", "X-Mes-Role" to account.role.ifBlank { "parent" }),
+                )
+            } else {
+                request(
+                    "$school/api/eventcalendar/v1/api/events",
+                    mapOf("person_ids" to student.personGuid, "begin_date" to scheduleFrom, "end_date" to scheduleTo, "expand" to "marks,homework"),
+                    h + ("x-mes-role" to account.role.ifBlank { "parent" }),
+                )
+            }))
             ev.response.filter { !it.subject_name.isNullOrBlank() && !it.start_at.isNullOrBlank() }.map {
                 DiaryLesson(
                     start = it.start_at!!,
@@ -176,20 +210,22 @@ class MeshClient(
             }.sortedBy { it.start }
         } else emptyList()
 
-        val marks = parse<Marks>(get(request(
-            "$school/api/family/mobile/v1/marks",
-            mapOf("student_id" to student.id.toString(), "from" to marksFrom, "to" to today.toString()),
-            h,
-        ))).payload.mapNotNull {
-            DiaryMark(
-                date = it.date?.take(10) ?: return@mapNotNull null,
-                subject = it.subject_name ?: return@mapNotNull null,
-                value = it.value ?: return@mapNotNull null,
-                weight = it.weight ?: 1,
-                form = it.control_form_name.orEmpty(),
-                comment = it.comment.orEmpty(),
-            )
-        }
+        val marks = runCatching {
+            parse<Marks>(get(request(
+                "$school/api/family/mobile/v1/marks",
+                mapOf("student_id" to student.id.toString(), "from" to marksFrom, "to" to today.toString()),
+                h,
+            ))).payload.mapNotNull {
+                DiaryMark(
+                    date = it.date?.take(10) ?: return@mapNotNull null,
+                    subject = it.subject_name ?: return@mapNotNull null,
+                    value = it.value ?: return@mapNotNull null,
+                    weight = it.weight ?: 1,
+                    form = it.control_form_name.orEmpty(),
+                    comment = it.comment.orEmpty(),
+                )
+            }
+        }.getOrElse { if (it is MeshAuthException && !account.web) throw it else marksFromLessons(lessons, today) }
 
         // Средние и домашка — дополнительные данные: если сервер их не отдал, расписание и оценки всё равно сохраним.
         val averages = runCatching {
@@ -197,7 +233,7 @@ class MeshClient(
                 .payload.mapNotNull { s ->
                     SubjectAverage(s.subject_name ?: return@mapNotNull null, s.average.orEmpty(), s.marks.orEmpty().mapNotNull { it.value })
                 }
-        }.getOrElse { if (it is MeshAuthException) throw it else emptyList() }
+        }.getOrElse { if (it is MeshAuthException && !account.web) throw it else averagesFrom(marks) }
 
         val homework = runCatching {
             parse<Homeworks>(get(request(
@@ -212,18 +248,29 @@ class MeshClient(
                     done = it.is_done == true,
                 )
             }
-        }.getOrElse { if (it is MeshAuthException) throw it else emptyList() }
+        }.getOrElse { if (it is MeshAuthException && !account.web) throw it else emptyList() }
 
         return DiarySnapshot(
             studentName = student.name,
             className = student.className,
             syncedAt = now,
-            lessons = lessons,
+            lessons = lessons.filter { it.date >= scheduleFrom },
             marks = marks.sortedByDescending { it.date },
             averages = averages,
             homework = homework,
         )
     }
+
+    /** Оценки из расписания (в веб-режиме мобильный список оценок может быть недоступен). */
+    private fun marksFromLessons(lessons: List<DiaryLesson>, today: LocalDate): List<DiaryMark> =
+        lessons.filter { it.date <= today.toString() }.flatMap { l -> l.marks.map { DiaryMark(l.date, l.subject, it) } }
+
+    /** Средний балл по предметам из числовых оценок. */
+    private fun averagesFrom(marks: List<DiaryMark>): List<SubjectAverage> =
+        marks.groupBy { it.subject }.mapNotNull { (subject, list) ->
+            val nums = list.mapNotNull { it.value.trim().toDoubleOrNull() }
+            if (nums.isEmpty()) null else SubjectAverage(subject, "%.2f".format(java.util.Locale.US, nums.average()), list.map { it.value })
+        }
 
     companion object {
         const val LOGIN_URL = "https://school.mos.ru/"

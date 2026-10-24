@@ -57,7 +57,18 @@ class YandexGptClient(
             .header("x-folder-id", folderId.trim())
             .post(json.encodeToString(payload).toRequestBody("application/json".toMediaType()))
             .build()
-        val body = http.fetch(req, "YandexGPT")
+        val body = try {
+            http.fetch(req, "YandexGPT")
+        } catch (e: LlmException) {
+            if (e.message?.contains(": 403") == true) {
+                throw LlmException(
+                    "YandexGPT: у ключа нет доступа к нейросети (403). Добавьте сервисному аккаунту роль " +
+                        "ai.languageModels.user или выберите в настройках GigaChat. Голос Яндекса от этого не зависит.",
+                    e,
+                )
+            }
+            throw e
+        }
         val resp = try {
             json.decodeFromString<Resp>(body)
         } catch (e: Exception) {

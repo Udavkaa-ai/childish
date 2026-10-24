@@ -83,6 +83,35 @@ class MeshTest {
     }
 
     @Test
+    fun fallsBackToWebApi() = runBlocking {
+        val s = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse = when (request.requestUrl!!.encodedPath) {
+                    "/api/family/web/v1/profile" -> MockResponse().setBody("""{"profile":{"id":555,"type":"parent"},"children":[{"id":12,"first_name":"Вероника","class_name":"4-Б","contingent_guid":"g-v"}]}""")
+                    "/api/eventcalendar/v1/api/events" ->
+                        if (request.getHeader("X-Mes-Subsystem") == "familyweb") MockResponse().setBody("""{"response":[
+                            {"start_at":"2026-10-20T09:30:00+03:00","subject_name":"Английский язык","marks":[{"value":"3"}]},
+                            {"start_at":"2026-10-21T09:30:00+03:00","subject_name":"Английский язык","marks":[{"value":"5"}]},
+                            {"start_at":"2026-10-27T09:30:00+03:00","subject_name":"Английский язык","homework":{"descriptions":["стр. 50"]}}]}""")
+                        else MockResponse().setResponseCode(401)
+                    else -> MockResponse().setResponseCode(401) // мобильный API ключ с сайта не принимает
+                }
+            }
+        }
+        s.use {
+            val base = s.url("/").toString().trimEnd('/')
+            val c = MeshClient("a.b.c", defaultHttpClient(), school = base, dnevnik = base)
+            val acc = c.account()
+            assertTrue(acc.web); assertEquals(555, acc.profileId)
+            val snap = c.snapshot(acc, acc.students.single(), LocalDate.of(2026, 10, 25))
+            assertEquals(listOf("5", "3"), snap.marks.map { it.value })
+            assertEquals("4.00", DiaryInsights.englishAverage(snap))
+            assertEquals(listOf("2026-10-20", "2026-10-21", "2026-10-27"), snap.lessons.map { it.date })
+            assertEquals(listOf(50), DiaryInsights.englishHomework(snap, "2026-10-25").flatMap { DiaryInsights.pages(it.text) })
+        }
+    }
+
+    @Test
     fun authErrors() = runBlocking {
         server(emptyMap(), code = 401).use { s ->
             val base = s.url("/").toString().trimEnd('/')
