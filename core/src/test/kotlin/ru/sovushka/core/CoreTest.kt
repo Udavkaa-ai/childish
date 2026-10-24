@@ -170,6 +170,29 @@ class CoreTest {
     }
 
     @Test
+    fun yandexTtsV3() = runBlocking {
+        val a = java.util.Base64.getEncoder().encodeToString(byteArrayOf(1, 2, 3))
+        val b = java.util.Base64.getEncoder().encodeToString(byteArrayOf(4, 5))
+        // Ответ v3 — поток объектов; в тексте может встретиться фигурная скобка.
+        val body = "{\"result\":{\"audioChunk\":{\"data\":\"$a\"},\"textChunk\":{\"text\":\"a { b\"}}}\n{\"result\":{\"audioChunk\":{\"data\":\"$b\"}}}\n"
+        assertEquals(listOf<Byte>(1, 2, 3, 4, 5), ru.sovushka.core.ai.YandexSpeech.parseV3Audio(body).toList())
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody(body))
+            server.enqueue(MockResponse().setBody(body))
+            val ya = ru.sovushka.core.ai.YandexSpeech("key", "b1g", defaultHttpClient(), v3Url = server.url("/tts/v3/utteranceSynthesis").toString())
+            assertEquals(5, ya.synthesizeV3("Привет! Hello!", "masha", "good").size)
+            val r = server.takeRequest()
+            assertEquals("Api-Key key", r.getHeader("Authorization"))
+            assertEquals("b1g", r.getHeader("x-folder-id"))
+            val sent = r.body.readUtf8()
+            assertTrue(sent.contains("\"voice\":\"masha\"") && sent.contains("\"role\":\"good\"") && sent.contains("\"containerAudioType\":\"MP3\""), sent)
+            assertTrue(!sent.contains("\"model\""))
+            ya.synthesizeV3("Hi", "sofia", "casual", model = "livetts")
+            assertTrue(server.takeRequest().body.readUtf8().contains("\"model\":\"livetts\""))
+        }
+    }
+
+    @Test
     fun yandexProtocol() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setBody("""{"result":{"alternatives":[{"message":{"role":"assistant","text":"Hello"},"status":"ALTERNATIVE_STATUS_FINAL"}],"usage":{}}}"""))

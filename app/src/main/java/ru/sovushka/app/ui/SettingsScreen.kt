@@ -40,6 +40,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,6 +51,9 @@ import ru.sovushka.app.graph
 import ru.sovushka.app.voice.Speaker
 import ru.sovushka.core.SpeechText
 import ru.sovushka.core.ai.ChatMessage
+import ru.sovushka.core.ai.YandexSpeech
+
+private const val MIXED_SAMPLE = "Привет! Меня зовут Ника. Hello! My name is Nika. I like apples and bananas. Давай учить английский!"
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
@@ -85,6 +89,7 @@ fun SettingsScreen(vm: AppViewModel) {
     val g = ctx.graph
     val p by g.settings.prefs.collectAsState()
     val missingVoice by g.speaker.missingVoice.collectAsState()
+    val yandexError by g.speaker.yandexError.collectAsState()
     val scope = rememberCoroutineScope()
     // Результаты проверки, экспорта и импорта показываем окном: экран длинный, текст наверху не видно.
     var status by remember { mutableStateOf<String?>(null) }
@@ -181,7 +186,18 @@ fun SettingsScreen(vm: AppViewModel) {
                 Section("🔊 Голос") {
                     Radio("Голос телефона (работает без интернета)", p.voice == Prefs.VOICE_ANDROID) { set { it.copy(voice = Prefs.VOICE_ANDROID) } }
                     Radio("Yandex SpeechKit (нужен ключ Yandex Cloud)", p.voice == Prefs.VOICE_YANDEX) { set { it.copy(voice = Prefs.VOICE_YANDEX) } }
-                    if (p.voice == Prefs.VOICE_YANDEX && p.provider != Prefs.PROVIDER_YANDEX) YandexFields(p) { f -> set(f) }
+                    if (p.voice == Prefs.VOICE_YANDEX) {
+                        if (p.provider != Prefs.PROVIDER_YANDEX) YandexFields(p) { f -> set(f) }
+                        Text("Голос Ники (один голос читает и русский, и английский):")
+                        YandexSpeech.GIRL_VOICES.forEach { v ->
+                            Radio(v.title, p.yaVoice == v.name && p.yaRole == v.role) {
+                                set { it.copy(yaVoice = v.name, yaRole = v.role, yaVoiceModel = v.model) }
+                                g.speaker.speak(MIXED_SAMPLE)
+                            }
+                        }
+                        yandexError?.let { Text("⚠️ Яндекс не ответил, говорит голос телефона: $it", color = Palette.Bad, fontSize = 14.sp) }
+                        PillButton("🎧 Послушать вместе", brush = Palette.button) { g.speaker.speak(MIXED_SAMPLE) }
+                    }
                     if (p.voice == Prefs.VOICE_ANDROID) {
                         val engines = remember { g.speaker.engines() }
                         if (engines.size > 1) {
@@ -206,7 +222,7 @@ fun SettingsScreen(vm: AppViewModel) {
                         Text("Высота русского голоса: ${"%.2f".format(p.pitchRu)}")
                         Slider(p.pitchRu, { v -> set { it.copy(pitchRu = v) } }, valueRange = 0.7f..1.5f)
                         PillButton("🎧 Послушать вместе", brush = Palette.button) {
-                            g.speaker.speak("Привет! Меня зовут Ника. Hello! My name is Nika. Давай учить английский! Let's learn English!")
+                            g.speaker.speak(MIXED_SAMPLE)
                         }
                     }
                     Text("Произношение:")

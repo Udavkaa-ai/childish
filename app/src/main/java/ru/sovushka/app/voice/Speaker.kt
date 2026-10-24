@@ -5,6 +5,7 @@ import android.media.MediaPlayer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +47,10 @@ class Speaker(
     val speaking: StateFlow<Boolean> = _speaking
 
     /** Нет английского или русского голоса в синтезаторе — подсказать родителю. */
+    /** Последняя ошибка голоса Яндекса (null — всё хорошо): показываем в настройках. */
+    private val _yandexError = MutableStateFlow<String?>(null)
+    val yandexError: StateFlow<String?> = _yandexError
+
     private val _missingVoice = MutableStateFlow(false)
     val missingVoice: StateFlow<Boolean> = _missingVoice
 
@@ -144,14 +149,25 @@ class Speaker(
         if (segments.isEmpty()) return
         _speaking.value = true
         try {
-            for (seg in segments) {
-                val p = settings.value
-                val ya = if (p.voice == Prefs.VOICE_YANDEX) yandex() else null
-                val done = if (ya != null) {
-                    runCatching { playYandex(ya, seg, p, slow) }.isSuccess
-                } else false
-                if (!done) speakAndroid(seg, p, slow)
+            val p = settings.value
+            if (p.voice == Prefs.VOICE_YANDEX) {
+                val ya = yandex()
+                if (ya == null) {
+                    _yandexError.value = "не указан API-ключ Yandex Cloud"
+                } else {
+                    // Один голос Яндекса читает всю фразу целиком — и русские, и английские слова.
+                    try {
+                        playYandex(ya, segments.joinToString(" ") { it.text }, p, slow)
+                        _yandexError.value = null
+                        return
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        _yandexError.value = e.message ?: e.toString()
+                    }
+                }
             }
+            for (seg in segments) speakAndroid(seg, p, slow)
         } finally {
             _speaking.value = false
         }
@@ -172,13 +188,12 @@ class Speaker(
         pending.remove(id)
     }
 
-    private suspend fun playYandex(ya: YandexSpeech, seg: SpeechText.Segment, p: Prefs, slow: Boolean) {
-        val (langCode, voice) = if (seg.lang == SpeechText.Lang.EN) "en-US" to "john" else "ru-RU" to "alena"
+    private suspend fun playYandex(ya: YandexSpeech, text: String, p: Prefs, slow: Boolean) {
         val speed = if (slow) 0.6 else p.rate.toDouble()
-        val key = sha1("$voice|$speed|${seg.text}")
+        val key = sha1("v3|${p.yaVoice}|${p.yaRole}|${p.yaVoiceModel}|$speed|$text")
         val file = File(context.filesDir, "tts/$key.mp3")
         if (!file.exists()) {
-            val bytes = ya.synthesize(seg.text, langCode, voice, speed)
+            val bytes = ya.synthesizeV3(text, p.yaVoice, p.yaRole, speed, p.yaVoiceModel)
             withContext(Dispatchers.IO) { file.parentFile?.mkdirs(); file.writeBytes(bytes) }
         }
         suspendCancellableCoroutine { cont ->

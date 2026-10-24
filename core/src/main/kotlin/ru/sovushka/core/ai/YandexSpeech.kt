@@ -3,6 +3,12 @@ package ru.sovushka.core.ai
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -15,7 +21,55 @@ class YandexSpeech(
     private val apiKey: String,
     private val folderId: String,
     private val http: OkHttpClient,
+    private val v3Url: String = "https://tts.api.cloud.yandex.net/tts/v3/utteranceSynthesis",
 ) {
+    /** Голос Яндекса для Ники: название, амплуа и модель (для LiveTTS). */
+    data class Voice(val name: String, val title: String, val role: String, val model: String = "")
+
+    companion object {
+        /** Женские голоса из документации SpeechKit (голоса general и LiveTTS). */
+        val GIRL_VOICES = listOf(
+            Voice("masha", "Маша — радостная", "good"),
+            Voice("masha", "Маша — дружелюбная", "friendly"),
+            Voice("dasha", "Даша — дружелюбная", "friendly"),
+            Voice("lera", "Лера — дружелюбная", "friendly"),
+            Voice("marina", "Марина — дружелюбная", "friendly"),
+            Voice("jane", "Джейн — радостная", "good"),
+            Voice("sofia", "София (LiveTTS) — разговорная", "casual", "livetts"),
+            Voice("vera", "Вера (LiveTTS) — разговорная", "casual", "livetts"),
+            Voice("irina", "Ирина (LiveTTS) — рассказчик", "narrator", "livetts"),
+        )
+
+        /** Достаём аудио из ответа v3: несколько JSON-объектов подряд (по строкам или слитно). */
+        fun parseV3Audio(raw: String): ByteArray {
+            val out = java.io.ByteArrayOutputStream()
+            var depth = 0
+            var start = -1
+            var inString = false
+            var escape = false
+            for ((i, c) in raw.withIndex()) {
+                if (inString) {
+                    if (escape) escape = false else if (c == '\\') escape = true else if (c == '"') inString = false
+                    continue
+                }
+                when (c) {
+                    '"' -> inString = true
+                    '{' -> { if (depth == 0) start = i; depth++ }
+                    '}' -> {
+                        depth--
+                        if (depth == 0 && start >= 0) {
+                            val obj = runCatching { json.parseToJsonElement(raw.substring(start, i + 1)).jsonObject }.getOrNull()
+                            val data = obj?.get("result")?.jsonObject?.get("audioChunk")?.jsonObject?.get("data")?.jsonPrimitive?.content
+                            if (data != null) out.write(java.util.Base64.getDecoder().decode(data))
+                            start = -1
+                        }
+                    }
+                }
+            }
+            return out.toByteArray()
+        }
+    }
+
     @Serializable
     private data class SttResp(val result: String = "")
 
@@ -39,6 +93,38 @@ class YandexSpeech(
                 if (!it.isSuccessful) throw LlmException("SpeechKit: ${it.code} ${it.body?.string()?.take(200)}")
                 it.body?.bytes() ?: ByteArray(0)
             }
+        }
+    }
+
+    /**
+     * Синтез через API v3 (новые голоса, амплуа и LiveTTS). Сервер отвечает потоком JSON-объектов
+     * {"result":{"audioChunk":{"data":"<base64>"}}} — склеиваем куски в один mp3.
+     * model = "livetts" для голосов LiveTTS (sofia, vera, irina…), пусто — обычные голоса general.
+     */
+    suspend fun synthesizeV3(text: String, voice: String, role: String = "", speed: Double = 1.0, model: String = ""): ByteArray {
+        val hints = buildJsonArray {
+            add(buildJsonObject { put("voice", voice.trim()) })
+            if (role.isNotBlank()) add(buildJsonObject { put("role", role.trim()) })
+            add(buildJsonObject { put("speed", "%.2f".format(java.util.Locale.US, speed)) })
+        }
+        val body = buildJsonObject {
+            if (model.isNotBlank()) put("model", model)
+            put("text", text)
+            put("hints", hints)
+            put("outputAudioSpec", buildJsonObject {
+                put("containerAudio", buildJsonObject { put("containerAudioType", "MP3") })
+            })
+            put("loudnessNormalizationType", "LUFS")
+        }
+        val req = Request.Builder()
+            .url(v3Url)
+            .header("Authorization", "Api-Key ${apiKey.trim()}")
+            .apply { if (folderId.isNotBlank()) header("x-folder-id", folderId.trim()) }
+            .post(body.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+        val raw = http.fetch(req, "SpeechKit")
+        return parseV3Audio(raw).also {
+            if (it.isEmpty()) throw LlmException("SpeechKit: пустой ответ синтеза: ${raw.take(200)}")
         }
     }
 
