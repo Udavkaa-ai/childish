@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -227,6 +228,11 @@ fun Nika(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood 
                     drawOval(SHOES, Offset(102f, 297f), Size(24f, 10f))
                     fillStroke(LEG_L, SUIT, SUIT_LINE)
                     fillStroke(LEG_R, SUIT, SUIT_LINE)
+                    trim(TRIM_L); trim(TRIM_R)
+                    drawPath(POCKET_STAR, STAR_GOLD)
+                    drawPath(POCKET_STAR, Color(0xFFC58A00), style = Stroke(0.5f))
+                    drawOval(Color.White.copy(alpha = 0.6f), Offset(77.5f, 298.7f), Size(7f, 2.6f))
+                    drawOval(Color.White.copy(alpha = 0.6f), Offset(105.5f, 298.7f), Size(7f, 2.6f))
                     drawRect(SKIN, Offset(96f, 170f), Size(8f, 18f))
                     translate(0f, breath * 0.8f) { torso(text) }
 
@@ -250,6 +256,14 @@ fun Nika(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood 
                             fillStroke(HAIR_CAP, HAIR, HAIR_LINE)
                             drawPath(SHINE_1, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
                             drawPath(SHINE_2, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
+                            rotate(-18f, pivot = Offset(58f, 64f)) {
+                                scale(1.3f, pivot = Offset(58f, 64f)) {
+                                    drawPath(BOW, PINK)
+                                    drawPath(BOW, PINK_DARK, style = Stroke(0.9f, join = StrokeJoin.Round))
+                                    drawCircle(PINK_LIGHT, 3.4f, Offset(58f, 64f))
+                                    drawCircle(PINK_DARK, 3.4f, Offset(58f, 64f), style = Stroke(0.9f))
+                                }
+                            }
 
                             if (mood == NikaMood.THINK) thinkingDots(fast)
                             if (mood == NikaMood.DANCE) notes(beat)
@@ -275,15 +289,31 @@ private fun DrawScope.fillStroke(path: Path, fill: Color, line: Color) {
 private fun DrawScope.armLeft(angle: Float) = rotate(angle, pivot = Offset(84f, 190f)) {
     drawCircle(SKIN, 5f, Offset(68f, 254f)); drawCircle(SUIT_LINE, 5f, Offset(68f, 254f), style = thin)
     fillStroke(ARM_L, SUIT_TOP, SUIT_LINE)
+    trim(CUFF_L)
 }
 
 private fun DrawScope.armRight(angle: Float) = rotate(angle, pivot = Offset(116f, 190f)) {
     drawCircle(SKIN, 5f, Offset(132f, 254f)); drawCircle(SUIT_LINE, 5f, Offset(132f, 254f), style = thin)
     fillStroke(ARM_R, SUIT_TOP, SUIT_LINE)
+    trim(CUFF_R)
+}
+
+/** Розовая отделка: манжеты и полоски внизу брюк. */
+private fun DrawScope.trim(path: Path) {
+    drawPath(path, PINK_LIGHT)
+    drawPath(path, SUIT_LINE, style = Stroke(0.8f))
 }
 
 private fun DrawScope.torso(text: TextMeasurer) {
-    fillStroke(TORSO, SUIT_TOP, SUIT_LINE)
+    drawPath(TORSO, SUIT_GRADIENT)
+    drawPath(TORSO, SUIT_LINE, style = thin)
+    drawPath(COLLAR, Color.White)
+    drawPath(COLLAR, Color(0xFF9AA7C4), style = Stroke(0.8f))
+    for (y in listOf(206f, 215f, 224f)) drawCircle(PINK, 1.7f, Offset(100f, y))
+    drawPath(BELT, PINK)
+    drawPath(BELT, PINK_DARK, style = Stroke(0.8f))
+    drawPath(BUCKLE, Color(0xFFFFE3EE))
+    drawPath(BUCKLE, PINK_DARK, style = Stroke(0.7f))
     drawRoundRect(Color.White, Offset(103f, 195f), Size(20f, 9f), CornerRadius(1.5f))
     drawRoundRect(Color(0xFF333333), Offset(103f, 195f), Size(20f, 9f), CornerRadius(1.5f), style = Stroke(0.7f))
     val label = text.measure("НИКА", TextStyle(fontSize = 5.4f.toSp(), fontWeight = FontWeight.Bold, color = Color(0xFF222222)))
@@ -374,6 +404,11 @@ private val SUIT_TOP = Color(0xFF2368B5)
 private val SUIT_LINE = Color(0xFF173F75)
 private val SHOES = Color(0xFF222222)
 private val LIPS = Color(0xFFE86A9A)
+private val PINK = Color(0xFFEC5F9C)
+private val PINK_LIGHT = Color(0xFFF48FB1)
+private val PINK_DARK = Color(0xFFA8326A)
+private val STAR_GOLD = Color(0xFFFFD54F)
+private val SUIT_GRADIENT = Brush.verticalGradient(listOf(Color(0xFF3584D6), Color(0xFF2160AE)), startY = 184f, endY = 240f)
 
 private val LOCK_L = svg("M40,112 C26,130 20,160 22,190 C23,215 16,235 9,251 Q18,257 26,250 Q33,261 42,252 Q52,259 58,246 C54,230 58,205 60,180 C62,160 64,140 68,128 Z")
 private val LOCK_R = svg("M160,112 C174,130 180,160 178,190 C177,215 184,235 191,251 Q182,257 174,250 Q167,261 158,252 Q148,259 142,246 C146,230 142,205 140,180 C138,160 136,140 132,128 Z")
@@ -386,6 +421,15 @@ private val LEG_L = svg("M77,236 L99,236 L98,266 C98,282 99,292 100,300 L72,300 
 private val LEG_R = svg("M123,236 L101,236 L102,266 C102,282 101,292 100,300 L128,300 C125,290 121,280 120,266 Z")
 private val TORSO = svg("M84,184 L116,184 C121,186 122,192 122,200 L124,240 L76,240 L78,200 C78,192 79,186 84,184 Z")
 private val HAIR_CAP = svg("M22,120 C20,70 55,30 100,28 C150,26 184,60 186,124 C178,112 168,98 160,86 C148,70 132,58 116,48 C108,62 92,72 72,84 C55,94 38,106 22,120 Z")
+private val COLLAR = svg("M100,186 C94,183 87,182 83,185 C83,192 90,198 98,195 Z M100,186 C106,183 113,182 117,185 C117,192 110,198 102,195 Z")
+private val BELT = svg("M76.6,231 L123.4,231 L123.7,237 L76.3,237 Z")
+private val BUCKLE = svg("M100,238 C96,235.5 95,232.5 97.5,231.8 C99,231.4 100,232.6 100,233.2 C100,232.6 101,231.4 102.5,231.8 C105,232.5 104,235.5 100,238 Z")
+private val CUFF_L = svg("M57.5,248 L80.2,247 L80,251 L56,252 Z")
+private val CUFF_R = svg("M142.5,248 L119.8,247 L120,251 L144,252 Z")
+private val TRIM_L = svg("M73.6,294 L99.6,294 L100,300 L72,300 Z")
+private val TRIM_R = svg("M126.4,294 L100.4,294 L100,300 L128,300 Z")
+private val POCKET_STAR = svg("M88.0,257.8 L89.1,260.5 L92.0,260.7 L89.7,262.6 L90.5,265.4 L88.0,263.8 L85.5,265.4 L86.3,262.6 L84.0,260.7 L86.9,260.5 Z")
+private val BOW = svg("M58,64 L47,57 L46,71 Z M58,64 L69,57 L70,71 Z")
 private val SHINE_1 = svg("M48,70 C60,52 78,42 96,38")
 private val SHINE_2 = svg("M128,40 C148,46 164,60 172,80")
 private val SMILE = svg("M86,144 C92,151 108,151 116,142")
