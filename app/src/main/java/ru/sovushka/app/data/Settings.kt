@@ -28,9 +28,11 @@ data class Prefs(
     val voiceRu: String = "",
     /** Высота голоса отдельно для языков — чтобы два голоса звучали как один персонаж. */
     /** Голос Яндекса (API v3): название, амплуа и модель (livetts для голосов LiveTTS). */
-    val yaVoice: String = "masha",
-    val yaRole: String = "good",
+    val yaVoice: String = "dasha",
+    val yaRole: String = "friendly",
     val yaVoiceModel: String = "",
+    val yaSpeed: Float = 1.05f,
+    val yaPitch: Float = 29f,
     val pitchEn: Float = 1.08f,
     val pitchRu: Float = 1.08f,
     val meshToken: String = "",
@@ -75,6 +77,8 @@ class Settings(context: Context) {
             yaVoice = sp.getString("yaVoice", d.yaVoice)!!,
             yaRole = sp.getString("yaRole", d.yaRole)!!,
             yaVoiceModel = sp.getString("yaVoiceModel", d.yaVoiceModel)!!,
+            yaSpeed = sp.getFloat("yaSpeed", d.yaSpeed),
+            yaPitch = sp.getFloat("yaPitch", d.yaPitch),
             pitchEn = sp.getFloat("pitchEn", d.pitchEn),
             pitchRu = sp.getFloat("pitchRu", d.pitchRu),
             meshToken = sp.getString("meshToken", d.meshToken)!!,
@@ -94,6 +98,7 @@ class Settings(context: Context) {
             .putString("voice", p.voice).putString("accent", p.accent).putFloat("rate", p.rate)
             .putString("ttsEngine", p.ttsEngine).putString("voiceEn", p.voiceEn).putString("voiceRu", p.voiceRu)
             .putString("yaVoice", p.yaVoice).putString("yaRole", p.yaRole).putString("yaVoiceModel", p.yaVoiceModel)
+            .putFloat("yaSpeed", p.yaSpeed).putFloat("yaPitch", p.yaPitch)
             .putFloat("pitchEn", p.pitchEn).putFloat("pitchRu", p.pitchRu)
             .putString("meshToken", p.meshToken).putLong("meshStudentId", p.meshStudentId)
             .apply()

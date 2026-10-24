@@ -195,6 +195,10 @@ fun SettingsScreen(vm: AppViewModel) {
                                 g.speaker.speak(MIXED_SAMPLE)
                             }
                         }
+                        Text("Скорость речи: ${"%.2f".format(p.yaSpeed)}")
+                        Slider(p.yaSpeed, { v -> set { it.copy(yaSpeed = v) } }, valueRange = 0.7f..1.5f)
+                        Text("Высота голоса: ${Math.round(p.yaPitch)}")
+                        Slider(p.yaPitch, { v -> set { it.copy(yaPitch = v) } }, valueRange = -300f..300f)
                         yandexError?.let { Text("⚠️ Яндекс не ответил, говорит голос телефона: $it", color = Palette.Bad, fontSize = 14.sp) }
                         PillButton("🎧 Послушать вместе", brush = Palette.button) { g.speaker.speak(MIXED_SAMPLE) }
                     }

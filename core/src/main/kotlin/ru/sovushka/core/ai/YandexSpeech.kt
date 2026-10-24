@@ -27,17 +27,18 @@ class YandexSpeech(
     data class Voice(val name: String, val title: String, val role: String, val model: String = "")
 
     companion object {
-        /** Женские голоса из документации SpeechKit (голоса general и LiveTTS). */
+        /**
+         * Женские голоса SpeechKit, которые сносно читают и английские слова.
+         * Голоса LiveTTS живее, но английский не читают (даже «Hello»), поэтому их здесь нет.
+         */
         val GIRL_VOICES = listOf(
+            Voice("dasha", "Даша — дружелюбная", "friendly"),
+            Voice("dasha", "Даша — радостная", "good"),
             Voice("masha", "Маша — радостная", "good"),
             Voice("masha", "Маша — дружелюбная", "friendly"),
-            Voice("dasha", "Даша — дружелюбная", "friendly"),
             Voice("lera", "Лера — дружелюбная", "friendly"),
             Voice("marina", "Марина — дружелюбная", "friendly"),
             Voice("jane", "Джейн — радостная", "good"),
-            Voice("sofia", "София (LiveTTS) — разговорная", "casual", "livetts"),
-            Voice("vera", "Вера (LiveTTS) — разговорная", "casual", "livetts"),
-            Voice("irina", "Ирина (LiveTTS) — рассказчик", "narrator", "livetts"),
         )
 
         /** Достаём аудио из ответа v3: несколько JSON-объектов подряд (по строкам или слитно). */
@@ -101,11 +102,20 @@ class YandexSpeech(
      * {"result":{"audioChunk":{"data":"<base64>"}}} — склеиваем куски в один mp3.
      * model = "livetts" для голосов LiveTTS (sofia, vera, irina…), пусто — обычные голоса general.
      */
-    suspend fun synthesizeV3(text: String, voice: String, role: String = "", speed: Double = 1.0, model: String = ""): ByteArray {
+    suspend fun synthesizeV3(
+        text: String,
+        voice: String,
+        role: String = "",
+        speed: Double = 1.0,
+        model: String = "",
+        pitchShift: Double = 0.0,
+    ): ByteArray {
         val hints = buildJsonArray {
             add(buildJsonObject { put("voice", voice.trim()) })
             if (role.isNotBlank()) add(buildJsonObject { put("role", role.trim()) })
-            add(buildJsonObject { put("speed", "%.2f".format(java.util.Locale.US, speed)) })
+            add(buildJsonObject { put("speed", speed) })
+            // Высота голоса в Гц (в Playground — «Высота голоса», от -1000 до 1000).
+            if (pitchShift != 0.0) add(buildJsonObject { put("pitchShift", pitchShift) })
         }
         val body = buildJsonObject {
             if (model.isNotBlank()) put("model", model)

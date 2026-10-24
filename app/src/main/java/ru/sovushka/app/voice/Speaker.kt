@@ -189,11 +189,12 @@ class Speaker(
     }
 
     private suspend fun playYandex(ya: YandexSpeech, text: String, p: Prefs, slow: Boolean) {
-        val speed = if (slow) 0.6 else p.rate.toDouble()
-        val key = sha1("v3|${p.yaVoice}|${p.yaRole}|${p.yaVoiceModel}|$speed|$text")
+        val speed = if (slow) 0.6 else p.yaSpeed.toDouble()
+        val pitch = Math.round(p.yaPitch).toDouble()
+        val key = sha1("v3|${p.yaVoice}|${p.yaRole}|${p.yaVoiceModel}|$speed|$pitch|$text")
         val file = File(context.filesDir, "tts/$key.mp3")
         if (!file.exists()) {
-            val bytes = ya.synthesizeV3(text, p.yaVoice, p.yaRole, speed, p.yaVoiceModel)
+            val bytes = ya.synthesizeV3(text, p.yaVoice, p.yaRole, speed, p.yaVoiceModel, pitch)
             withContext(Dispatchers.IO) { file.parentFile?.mkdirs(); file.writeBytes(bytes) }
         }
         suspendCancellableCoroutine { cont ->
