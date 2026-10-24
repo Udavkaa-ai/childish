@@ -1,6 +1,8 @@
 package ru.sovushka.app.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -37,9 +39,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -116,46 +121,75 @@ fun Nika(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood 
         }
     }
 
-    // Подскоки и подмигивание — короткие одноразовые анимации.
+    // Подскоки (с приседом перед толчком и пружинистым приземлением) и подмигивание.
     val hop = remember { Animatable(0f) }
+    val squat = remember { Animatable(0f) }
     val wink = remember { Animatable(0f) }
     LaunchedEffect(quirk) {
         when (quirk) {
-            Quirk.HOP -> { hop.animateTo(-14f, tween(170)); hop.animateTo(0f, spring(dampingRatio = 0.4f)) }
-            Quirk.BOUNCE -> repeat(2) { hop.animateTo(-6f, tween(120)); hop.animateTo(0f, tween(140)) }
+            Quirk.HOP -> {
+                squat.animateTo(1f, tween(170))
+                coroutineScope {
+                    launch { squat.animateTo(0f, tween(120)) }
+                    hop.animateTo(-16f, tween(180, easing = FastOutSlowInEasing))
+                }
+                hop.animateTo(0f, tween(170, easing = FastOutLinearInEasing))
+                squat.animateTo(0.7f, tween(80))
+                squat.animateTo(0f, spring(dampingRatio = 0.45f))
+            }
+            Quirk.BOUNCE -> repeat(2) {
+                squat.animateTo(0.5f, tween(110))
+                coroutineScope {
+                    launch { squat.animateTo(0f, tween(110)) }
+                    hop.animateTo(-6f, tween(110))
+                }
+                hop.animateTo(0f, tween(120))
+            }
             Quirk.WINK -> { wink.animateTo(1f, tween(90)); delay(380); wink.animateTo(0f, tween(140)) }
             else -> {}
         }
-        // Если движение прервали на середине (например, Ника заговорила) — возвращаем глаз и рост на место.
+        // Если движение прервали на середине (например, Ника заговорила) — возвращаем всё на место.
         if (quirk != Quirk.WINK && wink.value != 0f) wink.animateTo(0f, tween(140))
-        if (quirk != Quirk.HOP && quirk != Quirk.BOUNCE && hop.value != 0f) hop.animateTo(0f, tween(160))
+        if (quirk != Quirk.HOP && quirk != Quirk.BOUNCE) {
+            if (hop.value != 0f) hop.animateTo(0f, tween(160))
+            if (squat.value != 0f) squat.animateTo(0f, tween(160))
+        }
     }
 
     val wave = sin(fast * 2 * PI).toFloat()
     val dance = sin(beat * 2 * PI).toFloat()
     val gesture = sin(phase * 4 * PI).toFloat()
-    // Голова у Ники крупная, поэтому руки поднимаем в стороны (около 90–120°): так кисть видна сбоку от лица.
-    val armLTarget = when {
-        mood == NikaMood.HAPPY -> 112f + 10f * wave
-        mood == NikaMood.DANCE -> 85f + 30f * dance
-        mood == NikaMood.SURPRISED || quirk == Quirk.SHRUG -> 38f
-        mood == NikaMood.SAD -> -6f
-        talking -> 8f + 6f * gesture
-        else -> 0f
+
+    // Позы рук: плечо, локоть, кисть. Для правой руки отрицательный угол — вверх и в сторону,
+    // для левой — положительный (зеркально).
+    val right = when {
+        mood == NikaMood.HAPPY -> Pose(-115f - 8f * wave, -35f, -15f * wave)
+        mood == NikaMood.DANCE -> Pose(-75f - 20f * dance, -80f + 25f * dance, -20f * dance)
+        mood == NikaMood.WAVE || quirk == Quirk.WAVE -> Pose(-95f, -52f + 23f * wave, 15f * wave)
+        mood == NikaMood.THINK -> Pose(-30f, -125f, -30f)
+        mood == NikaMood.LISTEN -> Pose(-100f, -95f, -20f)
+        mood == NikaMood.SURPRISED -> Pose(-40f, -75f, -10f)
+        quirk == Quirk.SHRUG -> Pose(-35f, -80f, -30f)
+        mood == NikaMood.SAD -> Pose(5f, 2f, 0f)
+        talking -> Pose(-25f - 8f * gesture, -70f - 15f * gesture, -25f)
+        else -> Pose(0f, 6f, 0f)
     }
-    val armRTarget = when {
-        mood == NikaMood.HAPPY -> -112f - 10f * wave
-        mood == NikaMood.DANCE -> -85f + 30f * dance
-        mood == NikaMood.WAVE || quirk == Quirk.WAVE -> -102f + 14f * wave
-        mood == NikaMood.THINK -> -75f
-        mood == NikaMood.LISTEN -> -95f
-        mood == NikaMood.SURPRISED || quirk == Quirk.SHRUG -> -38f
-        mood == NikaMood.SAD -> 6f
-        talking -> -28f - 18f * gesture
-        else -> 0f
+    val left = when {
+        mood == NikaMood.HAPPY -> Pose(115f + 8f * wave, 35f, 15f * wave)
+        mood == NikaMood.DANCE -> Pose(40f - 25f * dance, 70f + 20f * dance, 10f)
+        mood == NikaMood.SURPRISED -> Pose(40f, 75f, 10f)
+        quirk == Quirk.SHRUG -> Pose(35f, 80f, 30f)
+        mood == NikaMood.SAD -> Pose(-5f, -2f, 0f)
+        talking -> Pose(8f, 15f + 6f * gesture, 0f)
+        else -> Pose(0f, -6f, 0f)
     }
-    val armL by animateFloatAsState(armLTarget, spring(stiffness = 320f), label = "armL")
-    val armR by animateFloatAsState(armRTarget, spring(stiffness = 320f), label = "armR")
+    val rs by animateFloatAsState(right.shoulder, spring(stiffness = 320f), label = "rs")
+    val re by animateFloatAsState(right.elbow, spring(stiffness = 320f), label = "re")
+    val rw by animateFloatAsState(right.wrist, spring(stiffness = 320f), label = "rw")
+    val ls by animateFloatAsState(left.shoulder, spring(stiffness = 320f), label = "ls")
+    val le by animateFloatAsState(left.elbow, spring(stiffness = 320f), label = "le")
+    val lw by animateFloatAsState(left.wrist, spring(stiffness = 320f), label = "lw")
+
     val tilt by animateFloatAsState(
         when {
             mood == NikaMood.SAD -> 7f
@@ -189,100 +223,106 @@ fun Nika(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood 
         label = "gazeY",
     )
     val eyeSize by animateFloatAsState(if (mood == NikaMood.SURPRISED) 1.15f else 1f, label = "eyeSize")
+    val sadSquat by animateFloatAsState(if (mood == NikaMood.SAD) 0.25f else 0f, label = "sadSquat")
 
     val text = rememberTextMeasurer()
     Canvas(modifier.aspectRatio(200f / 320f)) {
         val k = size.width / 200f
         val breath = sin(phase * 2 * PI).toFloat()
+        // Прыжки: в «ура» Ника скачет, приседая у земли; в танце пружинит то на одной, то на другой ноге.
+        val air = abs(sin(fast * PI).toFloat())
         val jump = when (mood) {
-            NikaMood.HAPPY -> -abs(sin(fast * PI).toFloat()) * 14f
-            NikaMood.DANCE -> -abs(dance) * 6f
+            NikaMood.HAPPY -> -air * 14f
             NikaMood.SURPRISED -> -4f
-            NikaMood.SAD -> 3f
             else -> 0f
         } + hop.value
+        val landing = if (mood == NikaMood.HAPPY) (1f - air).let { it * it * it } * 0.9f else 0f
+        val kneeL = maxOf(squat.value, landing, sadSquat, if (mood == NikaMood.DANCE) maxOf(0f, dance) * 0.8f else 0f)
+        val kneeR = maxOf(squat.value, landing, sadSquat, if (mood == NikaMood.DANCE) maxOf(0f, -dance) * 0.8f else 0f)
+        // Насколько опускается тело, когда колени согнуты (бедро 30 + голень 34 единицы).
+        val drop = 64f * (1f - cos(Math.toRadians(20.0 * maxOf(kneeL, kneeR))).toFloat())
         val bodyRot = when (mood) {
-            NikaMood.DANCE -> dance * 7f
+            NikaMood.DANCE -> dance * 6f
             NikaMood.IDLE, NikaMood.TALK -> breath * 1.2f
             else -> 0f
         }
-        val dx = if (mood == NikaMood.DANCE) dance * 5f else 0f
+        val dx = if (mood == NikaMood.DANCE) dance * 4f else 0f
         val sway = if (quirk == Quirk.HAIR || mood == NikaMood.DANCE) wave * 9f else breath * 2.5f
+        val armsUp = abs(ls) > RAISED || abs(rs) > RAISED
 
         scale(k, k, pivot = Offset.Zero) {
             rotate(bodyRot, pivot = Offset(100f, 305f)) {
                 translate(dx, jump) {
-                    // Волосы за головой и длинные пряди по бокам — пряди покачиваются.
-                    fillStroke(BACK_HAIR, HAIR, HAIR_LINE)
-                    rotate(sway, pivot = Offset(46f, 118f)) {
-                        fillStroke(LOCK_L, HAIR, HAIR_LINE)
-                        drawPath(STRANDS_L, STRAND, style = Stroke(1f, cap = StrokeCap.Round))
-                    }
-                    rotate(-sway, pivot = Offset(154f, 118f)) {
-                        fillStroke(LOCK_R, HAIR, HAIR_LINE)
-                        drawPath(STRANDS_R, STRAND, style = Stroke(1f, cap = StrokeCap.Round))
-                    }
+                    // Ноги: бедро вращается у пояса, голень — в колене (колени расходятся в стороны).
+                    leg(left = true, bend = kneeL, drop = drop)
+                    leg(left = false, bend = kneeR, drop = drop)
 
-                    // Опущенные руки — за туловищем, поднятые — поверх головы (иначе голова их закрывает).
-                    if (abs(armL) <= RAISED) armLeft(armL)
-                    if (abs(armR) <= RAISED) armRight(armR)
-
-                    // Туловище: туфли, брюки-клёш, шея, комбинезон, бейдж.
-                    drawOval(SHOES, Offset(74f, 297f), Size(24f, 10f))
-                    drawOval(SHOES, Offset(102f, 297f), Size(24f, 10f))
-                    fillStroke(LEG_L, SUIT, SUIT_LINE)
-                    fillStroke(LEG_R, SUIT, SUIT_LINE)
-                    trim(TRIM_L); trim(TRIM_R)
-                    drawPath(POCKET_STAR, STAR_GOLD)
-                    drawPath(POCKET_STAR, Color(0xFFC58A00), style = Stroke(0.5f))
-                    drawOval(Color.White.copy(alpha = 0.6f), Offset(77.5f, 298.7f), Size(7f, 2.6f))
-                    drawOval(Color.White.copy(alpha = 0.6f), Offset(105.5f, 298.7f), Size(7f, 2.6f))
-                    drawRect(SKIN, Offset(96f, 170f), Size(8f, 18f))
-                    translate(0f, breath * 0.8f) { torso(text) }
-
-                    // Голова: наклон, лёгкое покачивание и кивки в такт речи.
-                    translate(0f, breath * 1.2f + mouth.value * 1.5f) {
-                        rotate(tilt + breath * 1.2f, pivot = Offset(100f, 172f)) {
-                            drawCircle(SKIN, 70f, Offset(100f, 105f))
-                            drawCircle(OUTLINE, 70f, Offset(100f, 105f), style = thin)
-                            val blushA = if (mood == NikaMood.HAPPY || mood == NikaMood.DANCE || quirk == Quirk.WINK) 0.65f else 0.45f
-                            drawOval(BLUSH.copy(alpha = blushA), Offset(49f, 132.5f), Size(24f, 9f))
-                            drawOval(BLUSH.copy(alpha = blushA), Offset(127f, 132.5f), Size(24f, 9f))
-
-                            if (mood == NikaMood.HAPPY || mood == NikaMood.DANCE) {
-                                happyEye(74f); happyEye(126f)
-                            } else {
-                                eye(74f, -1f, maxOf(blink.value, wink.value), gazeX, gazeY, eyeSize)
-                                eye(126f, 1f, blink.value, gazeX, gazeY, eyeSize)
-                            }
-                            mouth(mood, mouth.value)
-
-                            fillStroke(HAIR_CAP, HAIR, HAIR_LINE)
-                            drawPath(SHINE_1, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
-                            drawPath(SHINE_2, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
-                            rotate(-18f, pivot = Offset(58f, 64f)) {
-                                scale(1.3f, pivot = Offset(58f, 64f)) {
-                                    drawPath(BOW, PINK)
-                                    drawPath(BOW, PINK_DARK, style = Stroke(0.9f, join = StrokeJoin.Round))
-                                    drawCircle(PINK_LIGHT, 3.4f, Offset(58f, 64f))
-                                    drawCircle(PINK_DARK, 3.4f, Offset(58f, 64f), style = Stroke(0.9f))
-                                }
-                            }
-
-                            if (mood == NikaMood.THINK) thinkingDots(fast)
-                            if (mood == NikaMood.DANCE) notes(beat)
+                    translate(0f, drop) {
+                        // Волосы за головой и длинные пряди по бокам — пряди покачиваются.
+                        fillStroke(BACK_HAIR, HAIR, HAIR_LINE)
+                        rotate(sway, pivot = Offset(46f, 118f)) {
+                            fillStroke(LOCK_L, HAIR, HAIR_LINE)
+                            drawPath(STRANDS_L, STRAND, style = Stroke(1f, cap = StrokeCap.Round))
                         }
-                    }
+                        rotate(-sway, pivot = Offset(154f, 118f)) {
+                            fillStroke(LOCK_R, HAIR, HAIR_LINE)
+                            drawPath(STRANDS_R, STRAND, style = Stroke(1f, cap = StrokeCap.Round))
+                        }
 
-                    if (abs(armL) > RAISED) armLeft(armL)
-                    if (abs(armR) > RAISED) armRight(armR)
-                    // Верх костюма поверх поднятых рук: рукав выходит из-за плеча и не залезает на воротничок.
-                    if (abs(armL) > RAISED || abs(armR) > RAISED) translate(0f, breath * 0.8f) { torso(text) }
+                        // Опущенные руки — за туловищем, поднятые — поверх головы (иначе голова их закрывает).
+                        if (abs(ls) <= RAISED) arm(left = true, ls + breath * 1.5f, le, lw)
+                        if (abs(rs) <= RAISED) arm(left = false, rs - breath * 1.5f, re, rw)
+
+                        drawRect(SKIN, Offset(96f, 170f), Size(8f, 18f))
+                        translate(0f, breath * 0.8f) { torso(text) }
+
+                        // Голова: наклон, лёгкое покачивание и кивки в такт речи.
+                        translate(0f, breath * 1.2f + mouth.value * 1.5f) {
+                            rotate(tilt + breath * 1.2f, pivot = Offset(100f, 172f)) {
+                                drawCircle(SKIN, 70f, Offset(100f, 105f))
+                                drawCircle(OUTLINE, 70f, Offset(100f, 105f), style = thin)
+                                val blushA = if (mood == NikaMood.HAPPY || mood == NikaMood.DANCE || quirk == Quirk.WINK) 0.65f else 0.45f
+                                drawOval(BLUSH.copy(alpha = blushA), Offset(49f, 132.5f), Size(24f, 9f))
+                                drawOval(BLUSH.copy(alpha = blushA), Offset(127f, 132.5f), Size(24f, 9f))
+
+                                if (mood == NikaMood.HAPPY || mood == NikaMood.DANCE) {
+                                    happyEye(74f); happyEye(126f)
+                                } else {
+                                    eye(74f, -1f, maxOf(blink.value, wink.value), gazeX, gazeY, eyeSize)
+                                    eye(126f, 1f, blink.value, gazeX, gazeY, eyeSize)
+                                }
+                                mouth(mood, mouth.value)
+
+                                fillStroke(HAIR_CAP, HAIR, HAIR_LINE)
+                                drawPath(SHINE_1, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
+                                drawPath(SHINE_2, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
+                                rotate(-18f, pivot = Offset(58f, 64f)) {
+                                    scale(1.3f, pivot = Offset(58f, 64f)) {
+                                        drawPath(BOW, PINK)
+                                        drawPath(BOW, PINK_DARK, style = Stroke(0.9f, join = StrokeJoin.Round))
+                                        drawCircle(PINK_LIGHT, 3.4f, Offset(58f, 64f))
+                                        drawCircle(PINK_DARK, 3.4f, Offset(58f, 64f), style = Stroke(0.9f))
+                                    }
+                                }
+
+                                if (mood == NikaMood.THINK) thinkingDots(fast)
+                                if (mood == NikaMood.DANCE) notes(beat)
+                            }
+                        }
+
+                        if (abs(ls) > RAISED) arm(left = true, ls, le, lw)
+                        if (abs(rs) > RAISED) arm(left = false, rs, re, rw)
+                        // Верх костюма поверх поднятых рук: рукав выходит из-за плеча и не залезает на воротничок.
+                        if (armsUp) translate(0f, breath * 0.8f) { torso(text) }
+                    }
                 }
             }
         }
     }
 }
+
+/** Поза руки: углы в плече, локте и запястье. */
+private data class Pose(val shoulder: Float, val elbow: Float, val wrist: Float)
 
 private val thin = Stroke(1.2f, join = StrokeJoin.Round)
 
@@ -291,17 +331,42 @@ private fun DrawScope.fillStroke(path: Path, fill: Color, line: Color) {
     drawPath(path, line, style = thin)
 }
 
-/** Руки вращаются вокруг плеча; кисть — на конце рукава. */
-private fun DrawScope.armLeft(angle: Float) = rotate(angle, pivot = Offset(84f, 190f)) {
-    drawCircle(SKIN, 5f, Offset(68f, 254f)); drawCircle(SUIT_LINE, 5f, Offset(68f, 254f), style = thin)
-    fillStroke(ARM_L, SUIT_TOP, SUIT_LINE)
-    trim(CUFF_L)
+/** Рука из двух частей: плечо вращается у плечевого сустава, предплечье — в локте, кисть — в запястье. */
+private fun DrawScope.arm(left: Boolean, shoulder: Float, elbow: Float, wrist: Float) {
+    val s = if (left) Offset(84f, 190f) else Offset(116f, 190f)
+    val e = if (left) Offset(76f, 221f) else Offset(124f, 221f)
+    val w = if (left) Offset(68f, 251f) else Offset(132f, 251f)
+    rotate(shoulder, pivot = s) {
+        rotate(elbow, pivot = e) {
+            rotate(wrist, pivot = w) { fillStroke(if (left) HAND_L else HAND_R, SKIN, SUIT_LINE) }
+            fillStroke(if (left) FORE_L else FORE_R, SUIT_TOP, SUIT_LINE)
+            trim(if (left) CUFF_L else CUFF_R)
+        }
+        fillStroke(if (left) UPPER_L else UPPER_R, SUIT_TOP, SUIT_LINE)
+        drawCircle(SUIT_TOP, 5.6f, e) // локоть закрывает стык плеча и предплечья
+    }
 }
 
-private fun DrawScope.armRight(angle: Float) = rotate(angle, pivot = Offset(116f, 190f)) {
-    drawCircle(SKIN, 5f, Offset(132f, 254f)); drawCircle(SUIT_LINE, 5f, Offset(132f, 254f), style = thin)
-    fillStroke(ARM_R, SUIT_TOP, SUIT_LINE)
-    trim(CUFF_R)
+/** Нога из двух частей: бедро у пояса и голень в колене. bend 0..1 — насколько согнута. */
+private fun DrawScope.leg(left: Boolean, bend: Float, drop: Float) {
+    val a = 20f * bend
+    val hip = if (left) Offset(88f, 238f) else Offset(112f, 238f)
+    val knee = if (left) Offset(89f, 266f) else Offset(111f, 266f)
+    translate(0f, drop) {
+        rotate(if (left) a else -a, pivot = hip) {
+            rotate(if (left) -2 * a else 2 * a, pivot = knee) {
+                drawOval(SHOES, Offset(if (left) 74f else 102f, 297f), Size(24f, 10f))
+                fillStroke(if (left) SHIN_L else SHIN_R, SUIT, SUIT_LINE)
+                trim(if (left) TRIM_L else TRIM_R)
+                drawOval(Color.White.copy(alpha = 0.6f), Offset(if (left) 77.5f else 105.5f, 298.7f), Size(7f, 2.6f))
+            }
+            fillStroke(if (left) THIGH_L else THIGH_R, SUIT, SUIT_LINE)
+            if (left) {
+                drawPath(POCKET_STAR, STAR_GOLD)
+                drawPath(POCKET_STAR, Color(0xFFC58A00), style = Stroke(0.5f))
+            }
+        }
+    }
 }
 
 /** Розовая отделка: манжеты и полоски внизу брюк. */
@@ -421,20 +486,26 @@ private val LOCK_R = svg("M160,112 C174,130 180,160 178,190 C177,215 184,235 191
 private val STRANDS_L = svg("M42,128 C32,160 30,200 22,240 M52,140 C46,175 44,215 40,248")
 private val STRANDS_R = svg("M158,128 C168,160 170,200 178,240 M148,140 C154,175 156,215 160,248")
 private val BACK_HAIR = svg("M30,108 C30,60 60,32 100,32 C140,32 170,60 170,108 L170,142 L30,142 Z")
-private val ARM_L = svg("M82,186 C74,199 69,220 67,236 L56,252 L80,251 L80,238 C82,222 85,206 88,193 Z")
-private val ARM_R = svg("M118,186 C126,199 131,220 133,236 L144,252 L120,251 L120,238 C118,222 115,206 112,193 Z")
-private val LEG_L = svg("M77,236 L99,236 L98,266 C98,282 99,292 100,300 L72,300 C75,290 79,280 80,266 Z")
-private val LEG_R = svg("M123,236 L101,236 L102,266 C102,282 101,292 100,300 L128,300 C125,290 121,280 120,266 Z")
+private val UPPER_L = svg("M89,192 C88,186 80,184 78,189 L70,219 C72,225 80,226 82,221 Z")
+private val UPPER_R = svg("M111,192 C112,186 120,184 122,189 L130,219 C128,225 120,226 118,221 Z")
+private val FORE_L = svg("M82,219 L70,219 C68,232 63,242 56,251 L80,251 C80,241 81,231 82,219 Z")
+private val FORE_R = svg("M118,219 L130,219 C132,232 137,242 144,251 L120,251 C120,241 119,231 118,219 Z")
+private val CUFF_L = svg("M57.5,248 L80.2,247 L80,251 L56,252 Z")
+private val CUFF_R = svg("M142.5,248 L119.8,247 L120,251 L144,252 Z")
+private val HAND_L = svg("M71.5,250 C73.5,256 71,261.5 67,261.5 C63,261.5 61.5,256 64,250 Z")
+private val HAND_R = svg("M128.5,250 C126.5,256 129,261.5 133,261.5 C137,261.5 138.5,256 136,250 Z")
+private val THIGH_L = svg("M77,236 L99,236 L98.5,268 L79.5,268 Z")
+private val THIGH_R = svg("M123,236 L101,236 L101.5,268 L120.5,268 Z")
+private val SHIN_L = svg("M79.5,264 L98.5,264 C98,282 99,292 100,300 L72,300 C75,290 79,280 79.5,264 Z")
+private val SHIN_R = svg("M120.5,264 L101.5,264 C102,282 101,292 100,300 L128,300 C125,290 121,280 120.5,264 Z")
+private val TRIM_L = svg("M73.6,294 L99.6,294 L100,300 L72,300 Z")
+private val TRIM_R = svg("M126.4,294 L100.4,294 L100,300 L128,300 Z")
+private val POCKET_STAR = svg("M88.0,247.8 L89.1,250.5 L92.0,250.7 L89.7,252.6 L90.5,255.4 L88.0,253.8 L85.5,255.4 L86.3,252.6 L84.0,250.7 L86.9,250.5 Z")
 private val TORSO = svg("M84,184 L116,184 C121,186 122,192 122,200 L124,240 L76,240 L78,200 C78,192 79,186 84,184 Z")
 private val HAIR_CAP = svg("M22,120 C20,70 55,30 100,28 C150,26 184,60 186,124 C178,112 168,98 160,86 C148,70 132,58 116,48 C108,62 92,72 72,84 C55,94 38,106 22,120 Z")
 private val COLLAR = svg("M100,186 C94,183 87,182 83,185 C83,192 90,198 98,195 Z M100,186 C106,183 113,182 117,185 C117,192 110,198 102,195 Z")
 private val BELT = svg("M76.6,231 L123.4,231 L123.7,237 L76.3,237 Z")
 private val BUCKLE = svg("M100,238 C96,235.5 95,232.5 97.5,231.8 C99,231.4 100,232.6 100,233.2 C100,232.6 101,231.4 102.5,231.8 C105,232.5 104,235.5 100,238 Z")
-private val CUFF_L = svg("M57.5,248 L80.2,247 L80,251 L56,252 Z")
-private val CUFF_R = svg("M142.5,248 L119.8,247 L120,251 L144,252 Z")
-private val TRIM_L = svg("M73.6,294 L99.6,294 L100,300 L72,300 Z")
-private val TRIM_R = svg("M126.4,294 L100.4,294 L100,300 L128,300 Z")
-private val POCKET_STAR = svg("M88.0,257.8 L89.1,260.5 L92.0,260.7 L89.7,262.6 L90.5,265.4 L88.0,263.8 L85.5,265.4 L86.3,262.6 L84.0,260.7 L86.9,260.5 Z")
 private val BOW = svg("M58,64 L47,57 L46,71 Z M58,64 L69,57 L70,71 Z")
 private val SHINE_1 = svg("M48,70 C60,52 78,42 96,38")
 private val SHINE_2 = svg("M128,40 C148,46 164,60 172,80")
