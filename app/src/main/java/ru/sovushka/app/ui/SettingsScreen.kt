@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -39,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import ru.sovushka.app.BuildConfigInfo
 import ru.sovushka.app.data.Prefs
 import ru.sovushka.app.graph
@@ -79,7 +82,9 @@ fun SettingsScreen(vm: AppViewModel) {
     val p by g.settings.prefs.collectAsState()
     val missingVoice by g.speaker.missingVoice.collectAsState()
     val scope = rememberCoroutineScope()
+    // Результаты проверки, экспорта и импорта показываем окном: экран длинный, текст наверху не видно.
     var status by remember { mutableStateOf<String?>(null) }
+    var checking by remember { mutableStateOf(false) }
     var certInfo by remember { mutableStateOf(if (g.gigaCertInstalled()) "встроен + загружен дополнительный ✅" else "встроен в приложение ✅") }
     fun set(f: (Prefs) -> Prefs) = g.settings.update(f)
 
@@ -121,7 +126,6 @@ fun SettingsScreen(vm: AppViewModel) {
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                status?.let { Text(it, fontWeight = FontWeight.Bold) }
 
                 Section("👧 Дети") {
                     OutlinedTextField(p.olderName, { v -> set { it.copy(olderName = v) } }, label = { Text("Старшая") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -148,18 +152,24 @@ fun SettingsScreen(vm: AppViewModel) {
                     }
                     if (p.provider == Prefs.PROVIDER_YANDEX) YandexFields(p) { f -> set(f) }
                     if (p.provider != Prefs.PROVIDER_NONE) {
-                        PillButton("🔌 Проверить связь", brush = Palette.bluish) {
-                            status = "Проверяю…"
+                        PillButton(if (checking) "⏳ Проверяю…" else "🔌 Проверить связь", brush = Palette.bluish, enabled = !checking) {
+                            checking = true
                             scope.launch {
                                 status = try {
-                                    val llm = g.llm() ?: throw IllegalStateException("заполните ключи")
-                                    val r = llm.chat(listOf(ChatMessage(ChatMessage.Role.USER, "Ответь одним словом по-английски: как будет «кошка»?")), maxTokens = 20)
-                                    "${llm.name} отвечает: $r ✅"
-                                } catch (e: Exception) {
-                                    "Ошибка: ${e.message}"
+                                    val llm = g.llm() ?: throw IllegalStateException("заполните ключ авторизации")
+                                    val r = withTimeoutOrNull(45_000) {
+                                        llm.chat(listOf(ChatMessage(ChatMessage.Role.USER, "Ответь одним словом по-английски: как будет «кошка»?")), maxTokens = 20)
+                                    } ?: throw IllegalStateException("нет ответа 45 секунд. Проверьте интернет (VPN лучше выключить).")
+                                    "${llm.name} отвечает: «$r» ✅\n\nВсё работает!"
+                                } catch (e: Throwable) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
+                                    "Не получилось ❌\n\n${e.message ?: e.javaClass.simpleName}"
+                                } finally {
+                                    checking = false
                                 }
                             }
                         }
+                        if (checking) LinearProgressIndicator(Modifier.fillMaxWidth())
                     }
                 }
 
@@ -196,6 +206,14 @@ fun SettingsScreen(vm: AppViewModel) {
                 Hint("English с Никой ${BuildConfigInfo.versionName(ctx)} · Ника придумана Вероникой 💙💗")
             }
         }
+    }
+
+    status?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { status = null },
+            confirmButton = { TextButton(onClick = { status = null }) { Text("OK") } },
+            text = { Text(msg, style = MaterialTheme.typography.bodyLarge) },
+        )
     }
 }
 
