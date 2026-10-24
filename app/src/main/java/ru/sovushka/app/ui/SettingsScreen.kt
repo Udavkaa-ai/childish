@@ -200,6 +200,14 @@ fun SettingsScreen(vm: AppViewModel) {
                             PillButton("🇬🇧 Английский голос", Modifier.weight(1f), brush = Palette.pinkish) { voiceDialog = SpeechText.Lang.EN }
                             PillButton("🇷🇺 Русский голос", Modifier.weight(1f), brush = Palette.bluish) { voiceDialog = SpeechText.Lang.RU }
                         }
+                        Hint("Чтобы Ника звучала как один человек, выберите два женских голоса похожего тембра и подровняйте высоту.")
+                        Text("Высота английского голоса: ${"%.2f".format(p.pitchEn)}")
+                        Slider(p.pitchEn, { v -> set { it.copy(pitchEn = v) } }, valueRange = 0.7f..1.5f)
+                        Text("Высота русского голоса: ${"%.2f".format(p.pitchRu)}")
+                        Slider(p.pitchRu, { v -> set { it.copy(pitchRu = v) } }, valueRange = 0.7f..1.5f)
+                        PillButton("🎧 Послушать вместе", brush = Palette.button) {
+                            g.speaker.speak("Привет! Меня зовут Ника. Hello! My name is Nika. Давай учить английский! Let's learn English!")
+                        }
                     }
                     Text("Произношение:")
                     Radio("Британское (как в школьных учебниках)", p.accent == "en-GB") { set { it.copy(accent = "en-GB") } }

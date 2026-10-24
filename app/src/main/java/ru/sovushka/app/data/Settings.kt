@@ -26,6 +26,9 @@ data class Prefs(
     /** Выбранные голоса; пусто — лучший доступный автоматически. */
     val voiceEn: String = "",
     val voiceRu: String = "",
+    /** Высота голоса отдельно для языков — чтобы два голоса звучали как один персонаж. */
+    val pitchEn: Float = 1.08f,
+    val pitchRu: Float = 1.08f,
     val meshToken: String = "",
     val meshStudentId: Long = -1,
 ) {
@@ -65,6 +68,8 @@ class Settings(context: Context) {
             ttsEngine = sp.getString("ttsEngine", d.ttsEngine)!!,
             voiceEn = sp.getString("voiceEn", d.voiceEn)!!,
             voiceRu = sp.getString("voiceRu", d.voiceRu)!!,
+            pitchEn = sp.getFloat("pitchEn", d.pitchEn),
+            pitchRu = sp.getFloat("pitchRu", d.pitchRu),
             meshToken = sp.getString("meshToken", d.meshToken)!!,
             meshStudentId = sp.getLong("meshStudentId", d.meshStudentId),
         )
@@ -81,6 +86,7 @@ class Settings(context: Context) {
             .putString("yaKey", p.yaKey).putString("yaFolder", p.yaFolder).putString("yaModel", p.yaModel)
             .putString("voice", p.voice).putString("accent", p.accent).putFloat("rate", p.rate)
             .putString("ttsEngine", p.ttsEngine).putString("voiceEn", p.voiceEn).putString("voiceRu", p.voiceRu)
+            .putFloat("pitchEn", p.pitchEn).putFloat("pitchRu", p.pitchRu)
             .putString("meshToken", p.meshToken).putLong("meshStudentId", p.meshStudentId)
             .apply()
         _prefs.value = p

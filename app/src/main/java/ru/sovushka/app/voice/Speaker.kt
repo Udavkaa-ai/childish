@@ -163,7 +163,7 @@ class Speaker(
         val voice = pickVoice(locale, if (seg.lang == SpeechText.Lang.EN) p.voiceEn else p.voiceRu)
         if (voice != null) tts.setVoice(voice) else tts.setLanguage(locale)
         tts.setSpeechRate(if (slow) 0.55f else p.rate)
-        tts.setPitch(1.08f) // Ника — девочка, голос чуть выше
+        tts.setPitch(if (seg.lang == SpeechText.Lang.EN) p.pitchEn else p.pitchRu)
         val id = UUID.randomUUID().toString()
         val done = CompletableDeferred<Unit>()
         pending[id] = done
