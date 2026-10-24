@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -395,7 +396,7 @@ private fun BuildTask(g: AppGraph, state: PracticeState, t: Task.Build) {
         SoundButton({ g.speaker.speak(t.sentence.en, SpeechText.Lang.EN, slow = true) }, slow = true)
     }
     Text(t.sentence.ru, fontSize = 20.sp, color = Palette.Muted, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-    CardBox(Modifier.height(110.dp)) {
+    CardBox(Modifier.heightIn(min = 110.dp)) {
         TokenRows(chosen.map { t.tokens[it] }) { idx -> if (state.result == null) chosen.removeAt(idx) }
     }
     TokenRows(t.tokens.mapIndexed { i, s -> if (i in chosen) "" else s }) { i ->
@@ -412,12 +413,12 @@ private fun BuildTask(g: AppGraph, state: PracticeState, t: Task.Build) {
 
 @Composable
 private fun TokenRows(tokens: List<String>, onTap: (Int) -> Unit) {
-    // Простая раскладка «по строкам»: примерно 18 символов в строке.
+    // Простая раскладка «по строкам»: примерно 15 символов в строке.
     val rows = mutableListOf<MutableList<Int>>()
     var len = 0
     tokens.indices.forEach { i ->
         val l = tokens[i].length + 2
-        if (rows.isEmpty() || len + l > 18) { rows.add(mutableListOf()); len = 0 }
+        if (rows.isEmpty() || len + l > 15) { rows.add(mutableListOf()); len = 0 }
         rows.last().add(i); len += l
     }
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -447,7 +448,7 @@ private fun Results(state: PracticeState, stars: Int, talking: Boolean, onAgain:
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Nika(if (talking) NikaMood.TALK else NikaMood.HAPPY, Modifier.size(width = 150.dp, height = 240.dp), talking = talking)
+        Nika(NikaMood.DANCE, Modifier.size(width = 150.dp, height = 240.dp), talking = talking)
         Stars(stars)
         Text("Правильно: ${state.correct} из ${state.total}", style = MaterialTheme.typography.titleLarge)
         if (hard.isNotEmpty()) {

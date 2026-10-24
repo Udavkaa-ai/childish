@@ -179,7 +179,7 @@ fun RepeatGameScreen(vm: AppViewModel, screen: Screen.YoungerGame) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             TopBar("⭐".repeat(stars.coerceAtMost(8)), onBack = { vm.back() })
             if (w == null || done) {
-                Nika(NikaMood.HAPPY, Modifier.height(280.dp), talking = talking)
+                Nika(NikaMood.DANCE, Modifier.height(280.dp), talking = talking)
                 Stars(3, size = 60)
                 Box(Modifier.padding(24.dp)) { BigTile("🏠", Palette.button, Modifier.size(140.dp)) { vm.back() } }
                 return@Column
@@ -267,7 +267,7 @@ fun FindGameScreen(vm: AppViewModel, screen: Screen.YoungerGame) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             TopBar("⭐".repeat(stars), onBack = { vm.back() })
             if (target == null || all.size < 3) {
-                Nika(NikaMood.HAPPY, Modifier.height(280.dp), talking = talking)
+                Nika(NikaMood.DANCE, Modifier.height(280.dp), talking = talking)
                 Stars(if (mistakes <= 1) 3 else if (mistakes <= 4) 2 else 1, size = 60)
                 Box(Modifier.padding(24.dp)) { BigTile("🏠", Palette.button, Modifier.size(140.dp)) { vm.back() } }
                 return@Column
@@ -292,7 +292,7 @@ fun FindGameScreen(vm: AppViewModel, screen: Screen.YoungerGame) {
                                         delay(300)
                                         round++
                                     } else {
-                                        mistakes++; mood = NikaMood.SAD
+                                        mistakes++; mood = NikaMood.SURPRISED
                                         shaking = o.en
                                         launch {
                                             for (x in listOf(24f, -24f, 16f, -16f, 0f)) shake.animateTo(x, tween(60))

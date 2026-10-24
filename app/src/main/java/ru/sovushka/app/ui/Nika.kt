@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -29,6 +31,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -40,12 +43,21 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /** Настроение Ники — от него зависит анимация. */
-enum class NikaMood { IDLE, TALK, HAPPY, SAD, LISTEN, THINK, WAVE }
+enum class NikaMood { IDLE, TALK, HAPPY, SAD, LISTEN, THINK, WAVE, DANCE, SURPRISED }
+
+/** Мелкие «живые» движения, которые Ника делает сама, пока стоит или говорит. */
+private enum class Quirk { NONE, LOOK_LEFT, LOOK_RIGHT, LOOK_UP, WINK, TILT, HOP, HAIR, WAVE, SHRUG, BOUNCE }
+
+private val IDLE_QUIRKS = Quirk.entries.filter { it != Quirk.NONE }
+private val TALK_QUIRKS = listOf(Quirk.TILT, Quirk.LOOK_LEFT, Quirk.LOOK_RIGHT, Quirk.SHRUG, Quirk.BOUNCE, Quirk.WINK)
+
+/** Рука считается поднятой, если повёрнута сильнее этого угла: тогда её рисуем поверх головы. */
+private const val RAISED = 60f
 
 /**
  * Ника — персонаж, которого придумала Вероника. Нарисована векторно по её рисунку
  * (исходник — art/nika.svg, координаты в той же системе 200×320) и разложена на части,
- * чтобы двигать голову, глаза, рот, руки и волосы.
+ * чтобы двигать голову, глаза, рот, руки, волосы и всё тело.
  */
 @Composable
 fun Nika(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood == NikaMood.TALK) {
@@ -56,14 +68,19 @@ fun Nika(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood 
     val fast by loop.animateFloat(
         0f, 1f, infiniteRepeatable(tween(700, easing = LinearEasing), RepeatMode.Restart), label = "fast",
     )
+    val beat by loop.animateFloat(
+        0f, 1f, infiniteRepeatable(tween(950, easing = LinearEasing), RepeatMode.Restart), label = "dance",
+    )
 
-    // Моргание раз в несколько секунд.
+    // Моргание раз в несколько секунд, иногда двойное.
     val blink = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         while (true) {
             delay(Random.nextLong(2200, 5200))
-            blink.animateTo(1f, tween(70))
-            blink.animateTo(0f, tween(110))
+            repeat(if (Random.nextInt(4) == 0) 2 else 1) {
+                blink.animateTo(1f, tween(70))
+                blink.animateTo(0f, tween(110))
+            }
         }
     }
 
@@ -80,98 +97,167 @@ fun Nika(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood 
         }
     }
 
-    val armLTarget = when (mood) {
-        NikaMood.HAPPY -> 135f + 15f * sin(fast * 2 * PI).toFloat()
-        NikaMood.THINK -> 20f
+    // Случайные движения в покое и во время речи.
+    var quirk by remember { mutableStateOf(Quirk.NONE) }
+    LaunchedEffect(mood, talking) {
+        quirk = Quirk.NONE
+        val pool = when {
+            talking || mood == NikaMood.TALK -> TALK_QUIRKS
+            mood == NikaMood.IDLE -> IDLE_QUIRKS
+            else -> return@LaunchedEffect
+        }
+        delay(Random.nextLong(800, 2000))
+        while (true) {
+            quirk = pool.random()
+            delay(if (quirk == Quirk.WAVE || quirk == Quirk.HAIR) 2000 else 1300)
+            quirk = Quirk.NONE
+            delay(Random.nextLong(2200, 5000))
+        }
+    }
+
+    // Подскоки и подмигивание — короткие одноразовые анимации.
+    val hop = remember { Animatable(0f) }
+    val wink = remember { Animatable(0f) }
+    LaunchedEffect(quirk) {
+        when (quirk) {
+            Quirk.HOP -> { hop.animateTo(-14f, tween(170)); hop.animateTo(0f, spring(dampingRatio = 0.4f)) }
+            Quirk.BOUNCE -> repeat(2) { hop.animateTo(-6f, tween(120)); hop.animateTo(0f, tween(140)) }
+            Quirk.WINK -> { wink.animateTo(1f, tween(90)); delay(380); wink.animateTo(0f, tween(140)) }
+            else -> {}
+        }
+    }
+
+    val wave = sin(fast * 2 * PI).toFloat()
+    val dance = sin(beat * 2 * PI).toFloat()
+    val gesture = sin(phase * 4 * PI).toFloat()
+    val armLTarget = when {
+        mood == NikaMood.HAPPY -> 135f + 15f * wave
+        mood == NikaMood.DANCE -> 95f + 55f * dance
+        mood == NikaMood.SURPRISED || quirk == Quirk.SHRUG -> 38f
+        mood == NikaMood.SAD -> -6f
+        talking -> 8f + 6f * gesture
         else -> 0f
     }
-    val armRTarget = when (mood) {
-        NikaMood.HAPPY -> -135f - 15f * sin(fast * 2 * PI).toFloat()
-        NikaMood.WAVE -> -140f + 25f * sin(fast * 2 * PI).toFloat()
-        NikaMood.THINK -> -115f
-        NikaMood.LISTEN -> -150f
+    val armRTarget = when {
+        mood == NikaMood.HAPPY -> -135f - 15f * wave
+        mood == NikaMood.DANCE -> -95f + 55f * dance
+        mood == NikaMood.WAVE || quirk == Quirk.WAVE -> -125f + 20f * wave
+        mood == NikaMood.THINK -> -165f
+        mood == NikaMood.LISTEN -> -140f
+        mood == NikaMood.SURPRISED || quirk == Quirk.SHRUG -> -38f
+        mood == NikaMood.SAD -> 6f
+        talking -> -28f - 18f * gesture
         else -> 0f
     }
-    val armL by animateFloatAsState(armLTarget, spring(stiffness = 300f), label = "armL")
-    val armR by animateFloatAsState(armRTarget, spring(stiffness = 300f), label = "armR")
+    val armL by animateFloatAsState(armLTarget, spring(stiffness = 320f), label = "armL")
+    val armR by animateFloatAsState(armRTarget, spring(stiffness = 320f), label = "armR")
     val tilt by animateFloatAsState(
-        when (mood) {
-            NikaMood.SAD -> 7f
-            NikaMood.LISTEN -> -7f
-            NikaMood.THINK -> 5f
+        when {
+            mood == NikaMood.SAD -> 7f
+            mood == NikaMood.LISTEN -> -8f
+            mood == NikaMood.THINK -> 6f
+            mood == NikaMood.DANCE -> 6f * dance
+            quirk == Quirk.TILT -> 9f
+            quirk == Quirk.LOOK_LEFT -> -4f
+            quirk == Quirk.LOOK_RIGHT -> 4f
+            quirk == Quirk.SHRUG -> -3f
             else -> 0f
         },
-        spring(stiffness = 200f), label = "tilt",
+        spring(stiffness = 180f), label = "tilt",
     )
-    val look by animateFloatAsState(
-        when (mood) {
-            NikaMood.SAD -> 1f
-            NikaMood.THINK, NikaMood.LISTEN -> -1f
+    val gazeX by animateFloatAsState(
+        when {
+            quirk == Quirk.LOOK_LEFT -> -4f
+            quirk == Quirk.LOOK_RIGHT -> 4f
+            mood == NikaMood.THINK -> -3f
+            mood == NikaMood.LISTEN -> 3f
             else -> 0f
         },
-        label = "look",
+        label = "gazeX",
     )
+    val gazeY by animateFloatAsState(
+        when {
+            mood == NikaMood.SAD -> 3.5f
+            mood == NikaMood.THINK || mood == NikaMood.LISTEN || quirk == Quirk.LOOK_UP -> -3.5f
+            else -> 0f
+        },
+        label = "gazeY",
+    )
+    val eyeSize by animateFloatAsState(if (mood == NikaMood.SURPRISED) 1.15f else 1f, label = "eyeSize")
 
     val text = rememberTextMeasurer()
     Canvas(modifier.aspectRatio(200f / 320f)) {
         val k = size.width / 200f
         val breath = sin(phase * 2 * PI).toFloat()
-        val jump = if (mood == NikaMood.HAPPY) -abs(sin(fast * PI).toFloat()) * 14f else 0f
-        val sway = breath * 2.5f
+        val jump = when (mood) {
+            NikaMood.HAPPY -> -abs(sin(fast * PI).toFloat()) * 14f
+            NikaMood.DANCE -> -abs(dance) * 6f
+            NikaMood.SURPRISED -> -4f
+            NikaMood.SAD -> 3f
+            else -> 0f
+        } + hop.value
+        val bodyRot = when (mood) {
+            NikaMood.DANCE -> dance * 7f
+            NikaMood.IDLE, NikaMood.TALK -> breath * 1.2f
+            else -> 0f
+        }
+        val dx = if (mood == NikaMood.DANCE) dance * 5f else 0f
+        val sway = if (quirk == Quirk.HAIR || mood == NikaMood.DANCE) wave * 9f else breath * 2.5f
 
         scale(k, k, pivot = Offset.Zero) {
-            translate(0f, jump + if (mood == NikaMood.SAD) 3f else 0f) {
-                // Пряди сбоку (за головой) — покачиваются.
-                rotate(sway, pivot = Offset(46f, 118f)) { fillStroke(LOCK_L, HAIR, HAIR_LINE) }
-                rotate(-sway, pivot = Offset(154f, 118f)) { fillStroke(LOCK_R, HAIR, HAIR_LINE) }
-
-                // Руки (за туловищем), вращаются вокруг плеча.
-                rotate(armL, pivot = Offset(84f, 190f)) {
-                    drawCircle(SKIN, 5f, Offset(68f, 254f)); drawCircle(SUIT_LINE, 5f, Offset(68f, 254f), style = thin)
-                    fillStroke(ARM_L, SUIT_TOP, SUIT_LINE)
-                }
-                rotate(armR, pivot = Offset(116f, 190f)) {
-                    drawCircle(SKIN, 5f, Offset(132f, 254f)); drawCircle(SUIT_LINE, 5f, Offset(132f, 254f), style = thin)
-                    fillStroke(ARM_R, SUIT_TOP, SUIT_LINE)
-                }
-
-                // Туловище: туфли, брюки-клёш, шея, комбинезон, бейдж.
-                drawOval(SHOES, Offset(74f, 297f), Size(24f, 10f))
-                drawOval(SHOES, Offset(102f, 297f), Size(24f, 10f))
-                fillStroke(LEG_L, SUIT, SUIT_LINE)
-                fillStroke(LEG_R, SUIT, SUIT_LINE)
-                drawRect(SKIN, Offset(96f, 170f), Size(8f, 18f))
-                translate(0f, breath * 0.8f) {
-                    fillStroke(TORSO, SUIT_TOP, SUIT_LINE)
-                    drawRoundRect(Color.White, Offset(103f, 195f), Size(20f, 9f), CornerRadius(1.5f))
-                    drawRoundRect(Color(0xFF333333), Offset(103f, 195f), Size(20f, 9f), CornerRadius(1.5f), style = Stroke(0.7f))
-                    val label = text.measure("НИКА", TextStyle(fontSize = 5.4f.toSp(), fontWeight = FontWeight.Bold, color = Color(0xFF222222)))
-                    drawText(label, topLeft = Offset(113f - label.size.width / 2f, 199.5f - label.size.height / 2f))
-                }
-
-                // Голова целиком: наклон и лёгкое покачивание.
-                translate(0f, breath * 1.2f) {
-                    rotate(tilt + breath * 1.2f, pivot = Offset(100f, 172f)) {
-                        drawCircle(SKIN, 70f, Offset(100f, 105f))
-                        drawCircle(OUTLINE, 70f, Offset(100f, 105f), style = thin)
-                        val blushA = if (mood == NikaMood.HAPPY) 0.65f else 0.45f
-                        drawOval(BLUSH.copy(alpha = blushA), Offset(49f, 132.5f), Size(24f, 9f))
-                        drawOval(BLUSH.copy(alpha = blushA), Offset(127f, 132.5f), Size(24f, 9f))
-
-                        if (mood == NikaMood.HAPPY) {
-                            happyEye(74f); happyEye(126f)
-                        } else {
-                            eye(74f, -1f, blink.value, look)
-                            eye(126f, 1f, blink.value, look)
-                        }
-                        mouth(mood, mouth.value)
-
-                        fillStroke(HAIR_CAP, HAIR, HAIR_LINE)
-                        drawPath(SHINE_1, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
-                        drawPath(SHINE_2, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
-
-                        if (mood == NikaMood.THINK) thinkingDots(fast)
+            rotate(bodyRot, pivot = Offset(100f, 305f)) {
+                translate(dx, jump) {
+                    // Волосы за головой и длинные пряди по бокам — пряди покачиваются.
+                    fillStroke(BACK_HAIR, HAIR, HAIR_LINE)
+                    rotate(sway, pivot = Offset(46f, 118f)) {
+                        fillStroke(LOCK_L, HAIR, HAIR_LINE)
+                        drawPath(STRANDS_L, STRAND, style = Stroke(1f, cap = StrokeCap.Round))
                     }
+                    rotate(-sway, pivot = Offset(154f, 118f)) {
+                        fillStroke(LOCK_R, HAIR, HAIR_LINE)
+                        drawPath(STRANDS_R, STRAND, style = Stroke(1f, cap = StrokeCap.Round))
+                    }
+
+                    // Опущенные руки — за туловищем, поднятые — поверх головы (иначе голова их закрывает).
+                    if (abs(armL) <= RAISED) armLeft(armL)
+                    if (abs(armR) <= RAISED) armRight(armR)
+
+                    // Туловище: туфли, брюки-клёш, шея, комбинезон, бейдж.
+                    drawOval(SHOES, Offset(74f, 297f), Size(24f, 10f))
+                    drawOval(SHOES, Offset(102f, 297f), Size(24f, 10f))
+                    fillStroke(LEG_L, SUIT, SUIT_LINE)
+                    fillStroke(LEG_R, SUIT, SUIT_LINE)
+                    drawRect(SKIN, Offset(96f, 170f), Size(8f, 18f))
+                    translate(0f, breath * 0.8f) { torso(text) }
+
+                    // Голова: наклон, лёгкое покачивание и кивки в такт речи.
+                    translate(0f, breath * 1.2f + mouth.value * 1.5f) {
+                        rotate(tilt + breath * 1.2f, pivot = Offset(100f, 172f)) {
+                            drawCircle(SKIN, 70f, Offset(100f, 105f))
+                            drawCircle(OUTLINE, 70f, Offset(100f, 105f), style = thin)
+                            val blushA = if (mood == NikaMood.HAPPY || mood == NikaMood.DANCE || quirk == Quirk.WINK) 0.65f else 0.45f
+                            drawOval(BLUSH.copy(alpha = blushA), Offset(49f, 132.5f), Size(24f, 9f))
+                            drawOval(BLUSH.copy(alpha = blushA), Offset(127f, 132.5f), Size(24f, 9f))
+
+                            if (mood == NikaMood.HAPPY || mood == NikaMood.DANCE) {
+                                happyEye(74f); happyEye(126f)
+                            } else {
+                                eye(74f, -1f, maxOf(blink.value, wink.value), gazeX, gazeY, eyeSize)
+                                eye(126f, 1f, blink.value, gazeX, gazeY, eyeSize)
+                            }
+                            mouth(mood, mouth.value)
+
+                            fillStroke(HAIR_CAP, HAIR, HAIR_LINE)
+                            drawPath(SHINE_1, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
+                            drawPath(SHINE_2, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
+
+                            if (mood == NikaMood.THINK) thinkingDots(fast)
+                            if (mood == NikaMood.DANCE) notes(beat)
+                        }
+                    }
+
+                    if (abs(armL) > RAISED) armLeft(armL)
+                    if (abs(armR) > RAISED) armRight(armR)
                 }
             }
         }
@@ -185,19 +271,39 @@ private fun DrawScope.fillStroke(path: Path, fill: Color, line: Color) {
     drawPath(path, line, style = thin)
 }
 
+/** Руки вращаются вокруг плеча; кисть — на конце рукава. */
+private fun DrawScope.armLeft(angle: Float) = rotate(angle, pivot = Offset(84f, 190f)) {
+    drawCircle(SKIN, 5f, Offset(68f, 254f)); drawCircle(SUIT_LINE, 5f, Offset(68f, 254f), style = thin)
+    fillStroke(ARM_L, SUIT_TOP, SUIT_LINE)
+}
+
+private fun DrawScope.armRight(angle: Float) = rotate(angle, pivot = Offset(116f, 190f)) {
+    drawCircle(SKIN, 5f, Offset(132f, 254f)); drawCircle(SUIT_LINE, 5f, Offset(132f, 254f), style = thin)
+    fillStroke(ARM_R, SUIT_TOP, SUIT_LINE)
+}
+
+private fun DrawScope.torso(text: TextMeasurer) {
+    fillStroke(TORSO, SUIT_TOP, SUIT_LINE)
+    drawRoundRect(Color.White, Offset(103f, 195f), Size(20f, 9f), CornerRadius(1.5f))
+    drawRoundRect(Color(0xFF333333), Offset(103f, 195f), Size(20f, 9f), CornerRadius(1.5f), style = Stroke(0.7f))
+    val label = text.measure("НИКА", TextStyle(fontSize = 5.4f.toSp(), fontWeight = FontWeight.Bold, color = Color(0xFF222222)))
+    drawText(label, topLeft = Offset(113f - label.size.width / 2f, 199.5f - label.size.height / 2f))
+}
+
 /** Глаз: белок, радужка с бликами и «стрелка» ресниц снаружи. side = -1 левый, 1 правый. */
-private fun DrawScope.eye(cx: Float, side: Float, blink: Float, look: Float) {
-    val open = 1f - blink * 0.92f
-    scale(1f, open, pivot = Offset(cx, 112f)) {
+private fun DrawScope.eye(cx: Float, side: Float, closed: Float, gazeX: Float, gazeY: Float, size: Float) {
+    val open = 1f - closed * 0.92f
+    scale(size, size * open, pivot = Offset(cx, 112f)) {
         val lash = Path().apply {
             moveTo(cx + side * 15f, 101f); lineTo(cx + side * 27f, 93f); lineTo(cx + side * 11f, 97f); close()
         }
         drawPath(lash, Color(0xFF111111))
         drawOval(Color.White, Offset(cx - 17f, 94f), Size(34f, 36f))
         drawOval(Color(0xFF111111), Offset(cx - 17f, 94f), Size(34f, 36f), style = Stroke(1.6f))
-        val ix = cx - side // зрачки чуть ближе к носу
-        val iy = 114f + look * 3.5f
-        drawCircle(Color(0xFF2B2B2B), 12.5f, Offset(ix, iy))
+        val ix = cx - side + gazeX // зрачки чуть ближе к носу
+        val iy = 114f + gazeY
+        val r = if (size > 1.05f) 10.5f else 12.5f
+        drawCircle(Color(0xFF2B2B2B), r, Offset(ix, iy))
         drawCircle(Color.White, 4f, Offset(ix - 5f, iy - 6f))
         drawCircle(Color.White, 2f, Offset(ix + 5f, iy + 5f))
     }
@@ -216,13 +322,16 @@ private fun DrawScope.mouth(mood: NikaMood, open: Float) {
             val p = Path().apply { moveTo(90f, 150f); cubicTo(95f, 143f, 105f, 143f, 110f, 150f) }
             drawPath(p, line, style = Stroke(1.6f, cap = StrokeCap.Round))
         }
+        mood == NikaMood.SURPRISED && open < 0.05f -> {
+            drawOval(Color(0xFF8E2547), Offset(95f, 141f), Size(10f, 12f))
+        }
         open > 0.05f -> {
             val h = 3f + open * 10f
             drawOval(Color(0xFF8E2547), Offset(92f, 146f - h / 2f), Size(16f, h))
             drawOval(LIPS, Offset(92f, 146f - h / 2f - 1.5f), Size(16f, 3.5f))
         }
         else -> {
-            val smile = if (mood == NikaMood.HAPPY) SMILE_BIG else SMILE
+            val smile = if (mood == NikaMood.HAPPY || mood == NikaMood.DANCE) SMILE_BIG else SMILE
             drawPath(smile, line, style = Stroke(1.3f, cap = StrokeCap.Round))
             drawPath(LIPS_PATH, LIPS)
             drawPath(LIPS_PATH, Color(0xFF9C2F5E), style = Stroke(0.8f))
@@ -237,10 +346,25 @@ private fun DrawScope.thinkingDots(t: Float) {
     }
 }
 
+/** Ноты вокруг головы во время танца. */
+private fun DrawScope.notes(t: Float) {
+    val colors = listOf(Color(0xFFEC5F9C), Color(0xFF4A9FE8), Color(0xFFBA68C8))
+    for (i in 0..2) {
+        val p = (t + i / 3f) % 1f
+        val x = listOf(20f, 178f, 40f)[i] + sin(p * 2 * PI).toFloat() * 6f
+        val y = 70f - p * 50f
+        val c = colors[i].copy(alpha = 1f - p)
+        drawCircle(c, 4.5f, Offset(x, y))
+        drawLine(c, Offset(x + 4f, y), Offset(x + 4f, y - 14f), strokeWidth = 1.8f)
+        drawLine(c, Offset(x + 4f, y - 14f), Offset(x + 10f, y - 10f), strokeWidth = 1.8f)
+    }
+}
+
 private fun svg(d: String): Path = PathParser().parsePathString(d).toPath()
 
 private val HAIR = Color(0xFF1631A8)
 private val HAIR_LINE = Color(0xFF0E1F6E)
+private val STRAND = Color(0x990E1F6E)
 private val SHINE = Color(0xB33D63E0)
 private val SKIN = Color(0xFFF7C8A0)
 private val OUTLINE = Color(0xFF3B2F2A)
@@ -251,8 +375,11 @@ private val SUIT_LINE = Color(0xFF173F75)
 private val SHOES = Color(0xFF222222)
 private val LIPS = Color(0xFFE86A9A)
 
-private val LOCK_L = svg("M46,116 C30,124 22,160 24,198 C25,232 30,252 46,254 C60,256 66,246 64,232 C61,208 64,176 70,148 Z")
-private val LOCK_R = svg("M154,116 C170,124 178,160 176,198 C175,232 170,252 154,254 C140,256 134,246 136,232 C139,208 136,176 130,148 Z")
+private val LOCK_L = svg("M40,112 C26,130 20,160 22,190 C23,215 16,235 9,251 Q18,257 26,250 Q33,261 42,252 Q52,259 58,246 C54,230 58,205 60,180 C62,160 64,140 68,128 Z")
+private val LOCK_R = svg("M160,112 C174,130 180,160 178,190 C177,215 184,235 191,251 Q182,257 174,250 Q167,261 158,252 Q148,259 142,246 C146,230 142,205 140,180 C138,160 136,140 132,128 Z")
+private val STRANDS_L = svg("M42,128 C32,160 30,200 22,240 M52,140 C46,175 44,215 40,248")
+private val STRANDS_R = svg("M158,128 C168,160 170,200 178,240 M148,140 C154,175 156,215 160,248")
+private val BACK_HAIR = svg("M30,108 C30,60 60,32 100,32 C140,32 170,60 170,108 L170,142 L30,142 Z")
 private val ARM_L = svg("M82,186 C74,199 69,220 67,236 L56,252 L80,251 L80,238 C82,222 85,206 88,193 Z")
 private val ARM_R = svg("M118,186 C126,199 131,220 133,236 L144,252 L120,251 L120,238 C118,222 115,206 112,193 Z")
 private val LEG_L = svg("M77,236 L99,236 L98,266 C98,282 99,292 100,300 L72,300 C75,290 79,280 80,266 Z")
