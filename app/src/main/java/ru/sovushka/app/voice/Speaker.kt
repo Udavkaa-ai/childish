@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaPlayer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +37,7 @@ class Speaker(
     private val yandex: () -> YandexSpeech?,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val ready = CompletableDeferred<Boolean>()
+    private var ready = CompletableDeferred<Boolean>()
     private val pending = ConcurrentHashMap<String, CompletableDeferred<Unit>>()
     private var job: Job? = null
     private var player: MediaPlayer? = null
@@ -48,19 +49,29 @@ class Speaker(
     private val _missingVoice = MutableStateFlow(false)
     val missingVoice: StateFlow<Boolean> = _missingVoice
 
-    private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
-        ready.complete(status == TextToSpeech.SUCCESS)
-    }.apply {
-        setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) { pending.remove(utteranceId)?.complete(Unit) }
-            @Deprecated("Deprecated in Java")
-            override fun onError(utteranceId: String?) { pending.remove(utteranceId)?.complete(Unit) }
-            override fun onError(utteranceId: String?, errorCode: Int) { pending.remove(utteranceId)?.complete(Unit) }
-        })
+    private val progress = object : UtteranceProgressListener() {
+        override fun onStart(utteranceId: String?) {}
+        override fun onDone(utteranceId: String?) { pending.remove(utteranceId)?.complete(Unit) }
+        @Deprecated("Deprecated in Java")
+        override fun onError(utteranceId: String?) { pending.remove(utteranceId)?.complete(Unit) }
+        override fun onError(utteranceId: String?, errorCode: Int) { pending.remove(utteranceId)?.complete(Unit) }
     }
 
-    init {
+    private var tts: TextToSpeech = create(settings.value.ttsEngine)
+
+    private fun create(engine: String): TextToSpeech {
+        val r = CompletableDeferred<Boolean>()
+        ready = r
+        val listener = TextToSpeech.OnInitListener { status -> r.complete(status == TextToSpeech.SUCCESS) }
+        val t = if (engine.isBlank()) TextToSpeech(context.applicationContext, listener)
+        else TextToSpeech(context.applicationContext, listener, engine)
+        t.setOnUtteranceProgressListener(progress)
+        return t
+    }
+
+    init { checkVoices() }
+
+    private fun checkVoices() {
         scope.launch {
             if (ready.await()) {
                 val en = tts.isLanguageAvailable(english(settings.value))
@@ -68,6 +79,50 @@ class Speaker(
                 _missingVoice.value = en < TextToSpeech.LANG_AVAILABLE || ru < TextToSpeech.LANG_AVAILABLE
             }
         }
+    }
+
+    /** Синтезаторы речи на телефоне: пакет → название. */
+    fun engines(): List<Pair<String, String>> = runCatching { tts.engines.map { it.name to it.label } }.getOrDefault(emptyList())
+
+    /** Сменить синтезатор (например, на «Синтезатор речи Google» с нейросетевыми голосами). */
+    fun setEngine(pkg: String) {
+        stop()
+        runCatching { tts.shutdown() }
+        tts = create(pkg)
+        checkVoices()
+    }
+
+    data class VoiceOption(val name: String, val title: String)
+
+    /** Голоса для языка, лучшие сверху. */
+    suspend fun voices(lang: SpeechText.Lang): List<VoiceOption> {
+        if (withTimeoutOrNull(5000) { ready.await() } != true) return emptyList()
+        val want = if (lang == SpeechText.Lang.EN) english(settings.value) else RU
+        return candidates(want).mapIndexed { i, v ->
+            val q = when {
+                v.quality >= Voice.QUALITY_VERY_HIGH -> "отличное качество"
+                v.quality >= Voice.QUALITY_HIGH -> "высокое качество"
+                else -> "обычное качество"
+            }
+            val net = if (v.isNetworkConnectionRequired) "нужен интернет" else "без интернета"
+            VoiceOption(v.name, "Голос ${i + 1} · ${v.locale.displayCountry.ifBlank { v.locale.displayLanguage }} · $q · $net")
+        }
+    }
+
+    private fun candidates(want: Locale): List<Voice> =
+        runCatching { tts.voices }.getOrNull().orEmpty()
+            .filter { it.locale.language == want.language && !it.features.orEmpty().contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) }
+            .sortedWith(
+                compareByDescending<Voice> { it.locale.country == want.country }
+                    .thenByDescending { it.quality }
+                    .thenBy { it.isNetworkConnectionRequired }
+                    .thenBy { it.latency },
+            )
+
+    /** Выбранный родителем голос или лучший доступный. */
+    private fun pickVoice(want: Locale, preferred: String): Voice? {
+        val all = candidates(want)
+        return all.firstOrNull { it.name == preferred } ?: all.firstOrNull()
     }
 
     private fun english(p: Prefs): Locale = if (p.accent == "en-US") Locale.US else Locale.UK
@@ -105,9 +160,10 @@ class Speaker(
     private suspend fun speakAndroid(seg: SpeechText.Segment, p: Prefs, slow: Boolean) {
         if (withTimeoutOrNull(5000) { ready.await() } != true) return
         val locale = if (seg.lang == SpeechText.Lang.EN) english(p) else RU
-        tts.setLanguage(locale)
+        val voice = pickVoice(locale, if (seg.lang == SpeechText.Lang.EN) p.voiceEn else p.voiceRu)
+        if (voice != null) tts.setVoice(voice) else tts.setLanguage(locale)
         tts.setSpeechRate(if (slow) 0.55f else p.rate)
-        tts.setPitch(1.12f) // Ника — девочка, голос чуть выше
+        tts.setPitch(1.08f) // Ника — девочка, голос чуть выше
         val id = UUID.randomUUID().toString()
         val done = CompletableDeferred<Unit>()
         pending[id] = done

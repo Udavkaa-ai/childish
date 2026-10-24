@@ -21,6 +21,11 @@ data class Prefs(
     val voice: String = VOICE_ANDROID,
     val accent: String = "en-GB",
     val rate: Float = 0.9f,
+    /** Синтезатор речи (пакет движка); пусто — системный по умолчанию. */
+    val ttsEngine: String = "",
+    /** Выбранные голоса; пусто — лучший доступный автоматически. */
+    val voiceEn: String = "",
+    val voiceRu: String = "",
     val meshToken: String = "",
     val meshStudentId: Long = -1,
 ) {
@@ -57,6 +62,9 @@ class Settings(context: Context) {
             voice = sp.getString("voice", d.voice)!!,
             accent = sp.getString("accent", d.accent)!!,
             rate = sp.getFloat("rate", d.rate),
+            ttsEngine = sp.getString("ttsEngine", d.ttsEngine)!!,
+            voiceEn = sp.getString("voiceEn", d.voiceEn)!!,
+            voiceRu = sp.getString("voiceRu", d.voiceRu)!!,
             meshToken = sp.getString("meshToken", d.meshToken)!!,
             meshStudentId = sp.getLong("meshStudentId", d.meshStudentId),
         )
@@ -72,6 +80,7 @@ class Settings(context: Context) {
             .putString("gigaKey", p.gigaKey).putString("gigaScope", p.gigaScope).putString("gigaModel", p.gigaModel)
             .putString("yaKey", p.yaKey).putString("yaFolder", p.yaFolder).putString("yaModel", p.yaModel)
             .putString("voice", p.voice).putString("accent", p.accent).putFloat("rate", p.rate)
+            .putString("ttsEngine", p.ttsEngine).putString("voiceEn", p.voiceEn).putString("voiceRu", p.voiceRu)
             .putString("meshToken", p.meshToken).putLong("meshStudentId", p.meshStudentId)
             .apply()
         _prefs.value = p

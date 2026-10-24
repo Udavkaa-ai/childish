@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -27,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -45,6 +47,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import ru.sovushka.app.BuildConfigInfo
 import ru.sovushka.app.data.Prefs
 import ru.sovushka.app.graph
+import ru.sovushka.app.voice.Speaker
+import ru.sovushka.core.SpeechText
 import ru.sovushka.core.ai.ChatMessage
 
 @Composable
@@ -85,6 +89,7 @@ fun SettingsScreen(vm: AppViewModel) {
     // Результаты проверки, экспорта и импорта показываем окном: экран длинный, текст наверху не видно.
     var status by remember { mutableStateOf<String?>(null) }
     var checking by remember { mutableStateOf(false) }
+    var voiceDialog by remember { mutableStateOf<SpeechText.Lang?>(null) }
     var certInfo by remember { mutableStateOf(if (g.gigaCertInstalled()) "встроен + загружен дополнительный ✅" else "встроен в приложение ✅") }
     fun set(f: (Prefs) -> Prefs) = g.settings.update(f)
 
@@ -177,6 +182,25 @@ fun SettingsScreen(vm: AppViewModel) {
                     Radio("Голос телефона (работает без интернета)", p.voice == Prefs.VOICE_ANDROID) { set { it.copy(voice = Prefs.VOICE_ANDROID) } }
                     Radio("Yandex SpeechKit (нужен ключ Yandex Cloud)", p.voice == Prefs.VOICE_YANDEX) { set { it.copy(voice = Prefs.VOICE_YANDEX) } }
                     if (p.voice == Prefs.VOICE_YANDEX && p.provider != Prefs.PROVIDER_YANDEX) YandexFields(p) { f -> set(f) }
+                    if (p.voice == Prefs.VOICE_ANDROID) {
+                        val engines = remember { g.speaker.engines() }
+                        if (engines.size > 1) {
+                            Text("Синтезатор:")
+                            Radio("По умолчанию в телефоне", p.ttsEngine.isBlank()) {
+                                set { it.copy(ttsEngine = "", voiceEn = "", voiceRu = "") }; g.speaker.setEngine("")
+                            }
+                            engines.forEach { (pkg, label) ->
+                                Radio(label, p.ttsEngine == pkg) {
+                                    set { it.copy(ttsEngine = pkg, voiceEn = "", voiceRu = "") }; g.speaker.setEngine(pkg)
+                                }
+                            }
+                        }
+                        Hint("Лучше всего звучат нейросетевые голоса «Синтезатора речи Google» (Speech Services by Google, есть в RuStore и Google Play). После установки скачайте в его настройках английский (Великобритания) и русский голоса.")
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            PillButton("🇬🇧 Английский голос", Modifier.weight(1f), brush = Palette.pinkish) { voiceDialog = SpeechText.Lang.EN }
+                            PillButton("🇷🇺 Русский голос", Modifier.weight(1f), brush = Palette.bluish) { voiceDialog = SpeechText.Lang.RU }
+                        }
+                    }
                     Text("Произношение:")
                     Radio("Британское (как в школьных учебниках)", p.accent == "en-GB") { set { it.copy(accent = "en-GB") } }
                     Radio("Американское", p.accent == "en-US") { set { it.copy(accent = "en-US") } }
@@ -208,6 +232,8 @@ fun SettingsScreen(vm: AppViewModel) {
         }
     }
 
+    voiceDialog?.let { lang -> VoicePicker(lang) { voiceDialog = null } }
+
     status?.let { msg ->
         AlertDialog(
             onDismissRequest = { status = null },
@@ -215,6 +241,40 @@ fun SettingsScreen(vm: AppViewModel) {
             text = { Text(msg, style = MaterialTheme.typography.bodyLarge) },
         )
     }
+}
+
+/** Выбор голоса Ники с прослушиванием. Выбор сохраняется сразу. */
+@Composable
+private fun VoicePicker(lang: SpeechText.Lang, onClose: () -> Unit) {
+    val g = LocalContext.current.graph
+    val p by g.settings.prefs.collectAsState()
+    val voices by produceState<List<Speaker.VoiceOption>?>(null, lang, p.ttsEngine, p.accent) { value = g.speaker.voices(lang) }
+    val sample = if (lang == SpeechText.Lang.EN) "Hello! I am Nika. Let's learn English together!" else "Привет! Я Ника. Давай учить английский!"
+    val selected = if (lang == SpeechText.Lang.EN) p.voiceEn else p.voiceRu
+    fun choose(name: String) {
+        g.settings.update { if (lang == SpeechText.Lang.EN) it.copy(voiceEn = name) else it.copy(voiceRu = name) }
+    }
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(if (lang == SpeechText.Lang.EN) "Английский голос Ники" else "Русский голос Ники") },
+        text = {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                val list = voices
+                when {
+                    list == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
+                    list.isEmpty() -> Text("В этом синтезаторе нет голосов для языка. Установите голосовые данные или выберите другой синтезатор.")
+                    else -> {
+                        Radio("Автоматически — лучший доступный", selected.isBlank()) { choose(""); g.speaker.speak(sample, lang) }
+                        list.forEach { v ->
+                            Radio(v.title, selected == v.name) { choose(v.name); g.speaker.speak(sample, lang) }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("Готово") } },
+        dismissButton = { TextButton(onClick = { g.speaker.speak(sample, lang) }) { Text("▶️ Послушать") } },
+    )
 }
 
 @Composable
