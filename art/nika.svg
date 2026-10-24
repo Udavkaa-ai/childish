@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 320" width="400" height="640">
+  <!-- Ника — персонаж Вероники. Слои те же, что и в анимации (NikaView.kt). -->
+  <g id="locks" fill="#1631A8" stroke="#0E1F6E" stroke-width="1.2">
+    <path d="M46,116 C30,124 22,160 24,198 C25,232 30,252 46,254 C60,256 66,246 64,232 C61,208 64,176 70,148 Z"/>
+    <path d="M154,116 C170,124 178,160 176,198 C175,232 170,252 154,254 C140,256 134,246 136,232 C139,208 136,176 130,148 Z"/>
+  </g>
+  <g id="armL" stroke="#173F75" stroke-width="1.2" stroke-linejoin="round">
+    <circle cx="68" cy="254" r="5" fill="#F7C8A0"/>
+    <path fill="#2368B5" d="M82,186 C74,199 69,220 67,236 L56,252 L80,251 L80,238 C82,222 85,206 88,193 Z"/>
+  </g>
+  <g id="armR" stroke="#173F75" stroke-width="1.2" stroke-linejoin="round">
+    <circle cx="132" cy="254" r="5" fill="#F7C8A0"/>
+    <path fill="#2368B5" d="M118,186 C126,199 131,220 133,236 L144,252 L120,251 L120,238 C118,222 115,206 112,193 Z"/>
+  </g>
+  <g id="body" stroke="#173F75" stroke-width="1.2" stroke-linejoin="round">
+    <ellipse cx="86" cy="302" rx="12" ry="5" fill="#222"/>
+    <ellipse cx="114" cy="302" rx="12" ry="5" fill="#222"/>
+    <path fill="#1E5FAF" d="M77,236 L99,236 L98,266 C98,282 99,292 100,300 L72,300 C75,290 79,280 80,266 Z"/>
+    <path fill="#1E5FAF" d="M123,236 L101,236 L102,266 C102,282 101,292 100,300 L128,300 C125,290 121,280 120,266 Z"/>
+    <rect x="96" y="170" width="8" height="18" fill="#F7C8A0" stroke="none"/>
+    <path fill="#2368B5" d="M84,184 L116,184 C121,186 122,192 122,200 L124,240 L76,240 L78,200 C78,192 79,186 84,184 Z"/>
+    <rect x="103" y="195" width="20" height="9" rx="1.5" fill="#fff" stroke="#333" stroke-width="0.7"/>
+    <text x="113" y="201.8" font-size="5.6" font-family="sans-serif" font-weight="bold" text-anchor="middle" fill="#222" stroke="none">НИКА</text>
+  </g>
+  <g id="head">
+    <circle cx="100" cy="105" r="70" fill="#F7C8A0" stroke="#3B2F2A" stroke-width="1.2"/>
+    <g id="blush" fill="#F06292" opacity="0.45">
+      <ellipse cx="61" cy="137" rx="12" ry="4.5"/>
+      <ellipse cx="139" cy="137" rx="12" ry="4.5"/>
+    </g>
+    <g id="eyes">
+      <g id="eyeL">
+        <path d="M59,101 L47,93 L63,97 Z" fill="#111"/>
+        <ellipse cx="74" cy="112" rx="17" ry="18" fill="#fff" stroke="#111" stroke-width="1.6"/>
+        <circle cx="75" cy="114" r="12.5" fill="#2B2B2B"/>
+        <circle cx="70" cy="108" r="4" fill="#fff"/>
+        <circle cx="80" cy="119" r="2" fill="#fff"/>
+      </g>
+      <g id="eyeR">
+        <path d="M141,101 L153,93 L137,97 Z" fill="#111"/>
+        <ellipse cx="126" cy="112" rx="17" ry="18" fill="#fff" stroke="#111" stroke-width="1.6"/>
+        <circle cx="125" cy="114" r="12.5" fill="#2B2B2B"/>
+        <circle cx="120" cy="108" r="4" fill="#fff"/>
+        <circle cx="130" cy="119" r="2" fill="#fff"/>
+      </g>
+    </g>
+    <g id="mouth">
+      <path d="M86,144 C92,151 108,151 116,142" fill="none" stroke="#3B2F2A" stroke-width="1.3" stroke-linecap="round"/>
+      <path d="M93,147 C93,143 97,142 99,144 C101,142 105,143 105,147 C105,151 100,153 99,152 C97,153 93,151 93,147 Z" fill="#E86A9A" stroke="#9C2F5E" stroke-width="0.8"/>
+    </g>
+    <path id="hair" fill="#1631A8" stroke="#0E1F6E" stroke-width="1.2" stroke-linejoin="round"
+      d="M22,120 C20,70 55,30 100,28 C150,26 184,60 186,124 C178,112 168,98 160,86 C148,70 132,58 116,48 C108,62 92,72 72,84 C55,94 38,106 22,120 Z"/>
+    <g id="shine" fill="none" stroke="#3D63E0" stroke-width="3" stroke-linecap="round" opacity="0.7">
+      <path d="M48,70 C60,52 78,42 96,38"/>
+      <path d="M128,40 C148,46 164,60 172,80"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,75 @@
+package ru.sovushka.core
+
+import kotlinx.serialization.Serializable
+import ru.sovushka.core.mesh.DiarySnapshot
+
+/** Слово из урока старшей дочки. Хранит и содержимое, и состояние интервального повторения. */
+@Serializable
+data class Word(
+    val id: String,
+    val lessonId: String,
+    val en: String,
+    val ru: String,
+    val tr: String = "",
+    val emoji: String = "",
+    val example: String = "",
+    val exampleRu: String = "",
+    /** Коробка Лейтнера: 0 — новое слово, чем больше — тем лучше выучено. */
+    val box: Int = 0,
+    /** День (epochDay), когда слово пора повторить. */
+    val due: Long = 0,
+    val right: Int = 0,
+    val wrong: Int = 0,
+)
+
+@Serializable
+data class Sentence(val en: String, val ru: String)
+
+@Serializable
+data class Lesson(
+    val id: String,
+    val title: String,
+    val createdAt: Long,
+    val note: String = "",
+    val grammar: String = "",
+    val sentences: List<Sentence> = emptyList(),
+    val sourceText: String = "",
+    val photos: List<String> = emptyList(),
+    val bestStars: Int = 0,
+    val runs: Int = 0,
+)
+
+@Serializable
+data class KidStats(
+    val stars: Int = 0,
+    val streak: Int = 0,
+    val lastDay: Long = 0,
+    val sessions: Int = 0,
+) {
+    /** Засчитать занятие в день [today]: звёзды и серия дней подряд. */
+    fun addSession(today: Long, earned: Int): KidStats {
+        val newStreak = when (lastDay) {
+            today -> streak.coerceAtLeast(1)
+            today - 1 -> streak + 1
+            else -> 1
+        }
+        return copy(stars = stars + earned, streak = newStreak, lastDay = today, sessions = sessions + 1)
+    }
+
+    /** Серия, которую видно сегодня: если вчера не занимались — она сгорела. */
+    fun visibleStreak(today: Long): Int = if (lastDay >= today - 1) streak else 0
+}
+
+@Serializable
+data class AppData(
+    val version: Int = 1,
+    val lessons: List<Lesson> = emptyList(),
+    val words: List<Word> = emptyList(),
+    val older: KidStats = KidStats(),
+    val younger: KidStats = KidStats(),
+    /** Последний снимок школьного дневника МЭШ. */
+    val diary: DiarySnapshot? = null,
+) {
+    fun wordsOf(lessonId: String): List<Word> = words.filter { it.lessonId == lessonId }
+    fun dueWords(today: Long): List<Word> = words.filter { Srs.isDue(it, today) }
+}
