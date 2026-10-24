@@ -180,14 +180,16 @@ fun DraftScreen(vm: AppViewModel) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 item {
-                    c.error?.let { Text(it, color = Palette.Bad, modifier = Modifier.padding(vertical = 6.dp)) }
-                    OutlinedTextField(title, { title = it }, label = { Text("Название") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    if (draft.grammar.isNotBlank()) {
-                        Spacer(Modifier.height(8.dp))
-                        CardBox { Text("📝 ${draft.grammar}", fontSize = 15.sp) }
+                    Column {
+                        c.error?.let { Text(it, color = Palette.Bad, modifier = Modifier.padding(vertical = 6.dp)) }
+                        OutlinedTextField(title, { title = it }, label = { Text("Название") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        if (draft.grammar.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            CardBox { Text("📝 ${draft.grammar}", fontSize = 15.sp) }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Hint("Нажми на слово, чтобы исправить. ✕ — убрать.")
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Hint("Нажми на слово, чтобы исправить. ✕ — убрать.")
                 }
                 items(words.size) { i ->
                     val w = words[i]

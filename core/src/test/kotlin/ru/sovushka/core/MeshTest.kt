@@ -73,6 +73,16 @@ class MeshTest {
     }
 
     @Test
+    fun tokenHelpers() {
+        val payload = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString("""{"sub":"1","exp":1893456000}""".toByteArray())
+        val token = "eyJhbGciOiJSUzI1NiJ9.$payload.c2lnbmF0dXJl"
+        assertEquals(1893456000000L, MeshClient.tokenExpiry(token))
+        assertTrue(MeshClient.looksLikeToken(" $token "))
+        assertEquals(null, MeshClient.tokenExpiry("abc"))
+        assertTrue(!MeshClient.looksLikeToken("a.b"))
+    }
+
+    @Test
     fun authErrors() = runBlocking {
         server(emptyMap(), code = 401).use { s ->
             val base = s.url("/").toString().trimEnd('/')

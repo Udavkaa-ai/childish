@@ -230,6 +230,16 @@ class MeshClient(
         const val TOKEN_COOKIE = "aupd_token"
         const val USER_AGENT = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
 
+        /** Срок действия токена (мс с 1970 г.) из поля exp JWT, или null, если не удалось прочитать. */
+        fun tokenExpiry(token: String): Long? = runCatching {
+            val payload = token.trim().split('.')[1]
+            val text = String(java.util.Base64.getUrlDecoder().decode(payload.padEnd((payload.length + 3) / 4 * 4, '=')))
+            Regex("\"exp\"\\s*:\\s*(\\d+)").find(text)!!.groupValues[1].toLong() * 1000
+        }.getOrNull()
+
+        /** Похоже ли на токен МЭШ (JWT из трёх частей). */
+        fun looksLikeToken(t: String): Boolean = t.trim().split('.').let { it.size == 3 && it.all { p -> p.length > 4 } }
+
         /** Выбрать ученика: сначала по имени, иначе первого. */
         fun pickStudent(account: MeshAccount, preferredId: Long?, preferredName: String): MeshStudent =
             account.students.firstOrNull { it.id == preferredId }

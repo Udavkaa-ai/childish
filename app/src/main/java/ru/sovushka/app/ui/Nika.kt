@@ -126,25 +126,29 @@ fun Nika(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood 
             Quirk.WINK -> { wink.animateTo(1f, tween(90)); delay(380); wink.animateTo(0f, tween(140)) }
             else -> {}
         }
+        // Если движение прервали на середине (например, Ника заговорила) — возвращаем глаз и рост на место.
+        if (quirk != Quirk.WINK && wink.value != 0f) wink.animateTo(0f, tween(140))
+        if (quirk != Quirk.HOP && quirk != Quirk.BOUNCE && hop.value != 0f) hop.animateTo(0f, tween(160))
     }
 
     val wave = sin(fast * 2 * PI).toFloat()
     val dance = sin(beat * 2 * PI).toFloat()
     val gesture = sin(phase * 4 * PI).toFloat()
+    // Голова у Ники крупная, поэтому руки поднимаем в стороны (около 90–120°): так кисть видна сбоку от лица.
     val armLTarget = when {
-        mood == NikaMood.HAPPY -> 135f + 15f * wave
-        mood == NikaMood.DANCE -> 95f + 55f * dance
+        mood == NikaMood.HAPPY -> 112f + 10f * wave
+        mood == NikaMood.DANCE -> 85f + 30f * dance
         mood == NikaMood.SURPRISED || quirk == Quirk.SHRUG -> 38f
         mood == NikaMood.SAD -> -6f
         talking -> 8f + 6f * gesture
         else -> 0f
     }
     val armRTarget = when {
-        mood == NikaMood.HAPPY -> -135f - 15f * wave
-        mood == NikaMood.DANCE -> -95f + 55f * dance
-        mood == NikaMood.WAVE || quirk == Quirk.WAVE -> -125f + 20f * wave
-        mood == NikaMood.THINK -> -165f
-        mood == NikaMood.LISTEN -> -140f
+        mood == NikaMood.HAPPY -> -112f - 10f * wave
+        mood == NikaMood.DANCE -> -85f + 30f * dance
+        mood == NikaMood.WAVE || quirk == Quirk.WAVE -> -102f + 14f * wave
+        mood == NikaMood.THINK -> -75f
+        mood == NikaMood.LISTEN -> -95f
         mood == NikaMood.SURPRISED || quirk == Quirk.SHRUG -> -38f
         mood == NikaMood.SAD -> 6f
         talking -> -28f - 18f * gesture
@@ -272,6 +276,8 @@ fun Nika(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood 
 
                     if (abs(armL) > RAISED) armLeft(armL)
                     if (abs(armR) > RAISED) armRight(armR)
+                    // Верх костюма поверх поднятых рук: рукав выходит из-за плеча и не залезает на воротничок.
+                    if (abs(armL) > RAISED || abs(armR) > RAISED) translate(0f, breath * 0.8f) { torso(text) }
                 }
             }
         }

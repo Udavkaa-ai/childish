@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -92,6 +93,7 @@ fun DiaryScreen(vm: AppViewModel) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var manualToken by remember { mutableStateOf("") }
+    val clipboard = LocalClipboardManager.current
     val diary = data.diary
     val todayIso = LocalDate.now().toString()
 
@@ -121,17 +123,39 @@ fun DiaryScreen(vm: AppViewModel) {
                         NikaSays("Подключи школьный дневник — я буду знать, что задали по английскому!", NikaMood.WAVE, false, nikaHeight = 150.dp)
                     }
                     item {
-                        BigButton("🔑", "Войти через mos.ru", subtitle = "Логин родителя или ученика") { vm.go(Screen.MeshLogin) }
-                    }
-                    item {
                         CardBox {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Hint("Или вставьте токен вручную (cookie aupd_token с school.mos.ru):")
-                                OutlinedTextField(manualToken, { manualToken = it.trim() }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                PillButton("Сохранить токен", enabled = manualToken.count { it == '.' } == 2) {
-                                    g.settings.update { it.copy(meshToken = manualToken) }
+                                Text("💻 Подключение через компьютер", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "1. На компьютере откройте school.mos.ru в Chrome или Яндекс Браузере и войдите как обычно.\n" +
+                                        "2. Нажмите F12 → вкладка «Application» («Приложение») → Cookies → https://school.mos.ru.\n" +
+                                        "3. Найдите строку aupd_token и скопируйте её значение (длинная строка, начинается с eyJ).\n" +
+                                        "4. Отправьте её себе на телефон (например, в «Избранное» мессенджера), скопируйте и нажмите кнопку ниже.",
+                                    fontSize = 15.sp,
+                                )
+                                OutlinedTextField(
+                                    manualToken, { manualToken = it.trim() }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                                    placeholder = { Text("eyJ…") },
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    PillButton("📋 Вставить из буфера", brush = Palette.bluish) {
+                                        manualToken = clipboard.getText()?.text?.trim().orEmpty()
+                                    }
+                                    PillButton("Сохранить", enabled = MeshClient.looksLikeToken(manualToken)) {
+                                        g.settings.update { it.copy(meshToken = manualToken.trim(), meshStudentId = -1) }
+                                        manualToken = ""
+                                    }
+                                }
+                                if (manualToken.isNotBlank() && !MeshClient.looksLikeToken(manualToken)) {
+                                    Text("Это не похоже на ключ входа: нужна длинная строка из трёх частей через точку.", color = Palette.Bad, fontSize = 14.sp)
                                 }
                             }
+                        }
+                    }
+                    item {
+                        Column {
+                            TextButton(onClick = { vm.go(Screen.MeshLogin) }) { Text("🔑 Попробовать войти прямо в приложении") }
+                            Hint("mos.ru может блокировать вход через сторонние приложения — тогда страница входа будет пустой. В этом случае используйте способ через компьютер.")
                         }
                     }
                     item { Hint("Используется неофициальный API дневника МЭШ (как в OctoDiary). Пароль приложение не видит — вход идёт на сайте mos.ru.") }
@@ -147,6 +171,16 @@ fun DiaryScreen(vm: AppViewModel) {
                             SimpleDateFormat("d MMM, HH:mm", Locale("ru")).format(Date(diary.syncedAt)),
                         color = Palette.Muted, fontSize = 14.sp,
                     )
+                }
+                MeshClient.tokenExpiry(prefs.meshToken)?.let { exp ->
+                    item {
+                        val left = (exp - System.currentTimeMillis()) / 86_400_000
+                        Text(
+                            if (left < 0) "⚠️ Вход в МЭШ истёк — подключите заново" else "Вход действует до " +
+                                SimpleDateFormat("d MMMM", Locale("ru")).format(Date(exp)),
+                            color = if (left < 2) Palette.Bad else Palette.Muted, fontSize = 13.sp,
+                        )
+                    }
                 }
                 item { EnglishCard(vm, diary, todayIso) }
                 val days = diary.lessons.filter { it.date >= todayIso }.groupBy { it.date }.toSortedMap().entries.take(5)
@@ -257,7 +291,6 @@ fun MeshLoginScreen(vm: AppViewModel) {
     var loading by remember { mutableStateOf(true) }
     var url by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-    var desktop by remember { mutableStateOf(false) }
     var web by remember { mutableStateOf<WebView?>(null) }
     var done by remember { mutableStateOf(false) }
 
@@ -276,14 +309,6 @@ fun MeshLoginScreen(vm: AppViewModel) {
             Hint("Войдите как обычно на mos.ru (можно через Госуслуги). Пароль вводится на сайте — приложение его не видит.", Modifier.padding(horizontal = 16.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(url.removePrefix("https://").take(60), fontSize = 12.sp, color = Palette.Muted, modifier = Modifier.weight(1f))
-                TextButton(onClick = {
-                    desktop = !desktop
-                    web?.let { w ->
-                        w.settings.userAgentString = if (desktop) DESKTOP_UA else MeshClient.USER_AGENT
-                        error = null
-                        w.loadUrl(LOGIN_URLS.first())
-                    }
-                }) { Text(if (desktop) "📱 Мобильная версия" else "🖥 Версия для компьютера", fontSize = 13.sp) }
             }
             error?.let { Text("⚠️ $it", color = Palette.Bad, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp))
@@ -301,8 +326,7 @@ fun MeshLoginScreen(vm: AppViewModel) {
                         settings.useWideViewPort = true
                         settings.builtInZoomControls = true
                         settings.displayZoomControls = false
-                        // Подписываемся обычным мобильным Chrome: некоторые сайты не работают со встроенным браузером.
-                        settings.userAgentString = MeshClient.USER_AGENT
+                        // Браузер не маскируем: mos.ru вправе блокировать вход через встроенные браузеры.
                         CookieManager.getInstance().setAcceptCookie(true)
                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                         webChromeClient = WebChromeClient()
@@ -357,9 +381,6 @@ fun MeshLoginScreen(vm: AppViewModel) {
 
 /** Сразу на вход через mos.ru (СУДИР); главная school.mos.ru — запасной вариант. */
 private val LOGIN_URLS = listOf("https://school.mos.ru/v3/auth/sudir/login", MeshClient.LOGIN_URL)
-
-private const val DESKTOP_UA =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 private const val FIND_TOKEN_JS = """(function(){try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);var v=localStorage.getItem(k)||'';if(/token/i.test(k)&&/^eyJ[\w-]+\.[\w-]+\.[\w-]+$/.test(v))return v;}}catch(e){}return '';})()"""
 
