@@ -158,6 +158,18 @@ class CoreTest {
     }
 
     @Test
+    fun bundledRussianCa() {
+        val certs = ru.sovushka.core.ai.Tls.russianTrustedCa()
+        assertEquals(2, certs.size)
+        assertTrue(certs.any { it.subjectX500Principal.name.contains("Russian Trusted Root CA") })
+        val fp = java.security.MessageDigest.getInstance("SHA-256").digest(certs.first { it.subjectX500Principal == it.issuerX500Principal }.encoded)
+            .joinToString(":") { "%02X".format(it) }
+        assertEquals("D2:6D:2D:02:31:B7:C3:9F:92:CC:73:85:12:BA:54:10:35:19:E4:40:5D:68:B5:BD:70:3E:97:88:CA:8E:CF:31", fp)
+        // Клиент с дополнительными сертификатами собирается поверх системных.
+        ru.sovushka.core.ai.Tls.withExtraCertificates(defaultHttpClient(), certs)
+    }
+
+    @Test
     fun yandexProtocol() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setBody("""{"result":{"alternatives":[{"message":{"role":"assistant","text":"Hello"},"status":"ALTERNATIVE_STATUS_FINAL"}],"usage":{}}}"""))

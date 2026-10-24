@@ -80,7 +80,7 @@ fun SettingsScreen(vm: AppViewModel) {
     val missingVoice by g.speaker.missingVoice.collectAsState()
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<String?>(null) }
-    var certInfo by remember { mutableStateOf(if (g.gigaCertInstalled()) "установлен ✅" else "не установлен") }
+    var certInfo by remember { mutableStateOf(if (g.gigaCertInstalled()) "встроен + загружен дополнительный ✅" else "встроен в приложение ✅") }
     fun set(f: (Prefs) -> Prefs) = g.settings.update(f)
 
     val pickCert = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -143,8 +143,8 @@ fun SettingsScreen(vm: AppViewModel) {
                         }
                         OutlinedTextField(p.gigaModel, { v -> set { it.copy(gigaModel = v.trim()) } }, label = { Text("Модель (GigaChat, GigaChat-Pro, GigaChat-Max…)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                         Text("Сертификат НУЦ Минцифры: $certInfo")
-                        Hint("GigaChat работает только с российским корневым сертификатом. Скачайте на телефон «Корневой сертификат» с gosuslugi.ru/crt (файл russian_trusted_root_ca) и выберите его здесь. Он используется только для запросов к GigaChat.")
-                        PillButton("📄 Загрузить сертификат") { pickCert.launch(arrayOf("*/*")) }
+                        Hint("Российский корневой сертификат для GigaChat уже встроен (действует до 2032 г.) и используется только для запросов к GigaChat. Загружать свой нужно, только если Минцифры выпустит новый.")
+                        TextButton(onClick = { pickCert.launch(arrayOf("*/*")) }) { Text("📄 Загрузить другой сертификат") }
                     }
                     if (p.provider == Prefs.PROVIDER_YANDEX) YandexFields(p) { f -> set(f) }
                     if (p.provider != Prefs.PROVIDER_NONE) {

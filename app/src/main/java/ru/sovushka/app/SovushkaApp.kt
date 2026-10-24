@@ -41,7 +41,10 @@ class AppGraph(val context: Context) {
     val speaker = Speaker(context, settings) { yandexSpeech() }
     val listener = Listener(context, settings) { yandexSpeech() }
 
-    /** Корневой сертификат НУЦ Минцифры для GigaChat (родитель загружает его в настройках). */
+    /** Встроенные сертификаты НУЦ Минцифры для GigaChat. */
+    private val bundledCerts by lazy { runCatching { Tls.russianTrustedCa() }.getOrDefault(emptyList()) }
+
+    /** Дополнительный сертификат, если Минцифры его сменит (родитель может загрузить новый в настройках). */
     val gigaCertFile: File get() = File(context.filesDir, "russian_trusted_root_ca.crt")
 
     fun gigaCertInstalled(): Boolean = gigaCertFile.exists()
@@ -65,7 +68,8 @@ class AppGraph(val context: Context) {
         if (key == cachedKey) return cachedLlm
         val client = when (p.provider) {
             Prefs.PROVIDER_GIGACHAT -> if (p.gigaKey.isBlank()) null else {
-                val extra = if (gigaCertInstalled()) runCatching { Tls.parseCertificates(gigaCertFile.readBytes()) }.getOrDefault(emptyList()) else emptyList()
+                val imported = if (gigaCertInstalled()) runCatching { Tls.parseCertificates(gigaCertFile.readBytes()) }.getOrDefault(emptyList()) else emptyList()
+                val extra = bundledCerts + imported
                 GigaChatClient(p.gigaKey, p.gigaScope, p.gigaModel.ifBlank { "GigaChat" }, Tls.withExtraCertificates(http, extra))
             }
             Prefs.PROVIDER_YANDEX -> if (p.yaKey.isBlank() || p.yaFolder.isBlank()) null else YandexGptClient(p.yaKey, p.yaFolder, p.yaModel, http)

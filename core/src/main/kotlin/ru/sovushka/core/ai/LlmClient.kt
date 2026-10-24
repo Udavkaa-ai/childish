@@ -35,7 +35,7 @@ internal suspend fun OkHttpClient.fetch(request: Request, service: String): Stri
         newCall(request).execute()
     } catch (e: javax.net.ssl.SSLException) {
         throw LlmException("$service: не удалось установить защищённое соединение (${e.message}). " +
-            "Для GigaChat нужен сертификат НУЦ Минцифры — загрузите его в настройках.", e)
+            "Если это GigaChat — возможно, Минцифры сменило сертификат: загрузите новый с gosuslugi.ru/crt в настройках.", e)
     } catch (e: IOException) {
         throw LlmException("$service: нет связи с сервером. Проверьте интернет. (${e.message})", e)
     }
