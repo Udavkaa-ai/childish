@@ -102,7 +102,7 @@ fun YoungerHomeScreen(vm: AppViewModel) {
 @Composable
 private fun BigTile(emoji: String, brush: Brush, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val spec = iconFor(emoji)
-    CandyButton(onClick, modifier, brush = brush, shape = RoundedCornerShape(28.dp), depth = 7.dp,
+    GlassButton(onClick, modifier, brush = brush, shape = RoundedCornerShape(28.dp), depth = 7.dp,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp)) {
         Box(Modifier.fillMaxWidth().aspectRatio(1f), contentAlignment = Alignment.Center) {
             if (spec != null) AppIcon(spec, size = 72.dp, tint = Color.White) else Sticker(emoji, 78.dp)

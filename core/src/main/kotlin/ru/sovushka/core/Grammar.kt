@@ -29,6 +29,9 @@ data class Drill(
         else -> false
     }
 
+    /** Отпечаток упражнения — чтобы помнить «плохие» задания. */
+    val key: String get() = "$kind|${prompt.trim()}|${answer.trim()}"
+
     /** Предложение целиком — чтобы озвучить после ответа. */
     val fullSentence: String get() = if (kind == "gap") prompt.replace("___", answer) else answer
 

@@ -1,5 +1,19 @@
 package ru.sovushka.app.ui
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import ru.sovushka.app.R
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -141,10 +155,13 @@ fun iconFor(emoji: String): IconSpec? = when (emoji) {
 
 /* ======================= Живой фон ======================= */
 
+/** Общие «часы» экрана для живых бликов на стекле: одна анимация на экран, читается только при отрисовке. */
+val LocalGlassClock = staticCompositionLocalOf<State<Float>> { mutableFloatStateOf(0f) }
+
 private class Floater(val x: Float, val y: Float, val size: Float, val speed: Float, val phase: Float, val kind: Int, val color: Color)
 
 private val floaters = Random(7).let { r ->
-    List(13) {
+    List(11) {
         Floater(
             x = r.nextFloat(), y = r.nextFloat(), size = 10f + r.nextFloat() * 18f,
             speed = 0.5f + r.nextFloat() * 0.9f, phase = r.nextFloat(), kind = it % 3,
@@ -153,57 +170,122 @@ private val floaters = Random(7).let { r ->
     }
 }
 
+/** Цветные пятна «северного сияния»: медленно плывут и дышат поверх картинки неба. */
+private class Glow(val x: Float, val y: Float, val r: Float, val speed: Int, val phase: Float, val color: Color)
+
+private val glows = listOf(
+    Glow(0.12f, 0.18f, 0.62f, 1, 0.00f, Color(0xFFFF7EB9)),
+    Glow(0.88f, 0.34f, 0.66f, 1, 0.33f, Color(0xFF6EC1FF)),
+    Glow(0.28f, 0.70f, 0.70f, 2, 0.60f, Color(0xFFB98BFF)),
+    Glow(0.82f, 0.92f, 0.56f, 1, 0.15f, Color(0xFF7FE8D8)),
+)
+
+/** Картинка неба (нарисована в OpenArt) — декодируется один раз на всё приложение, 16 бит на точку. */
+private var skyCache: ImageBitmap? = null
+
+@Composable
+private fun rememberSky(): ImageBitmap? {
+    val res = LocalContext.current.resources
+    return remember {
+        skyCache ?: runCatching {
+            val o = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 }
+            BitmapFactory.decodeResource(res, R.drawable.bg_sky, o).asImageBitmap()
+        }.getOrNull().also { skyCache = it }
+    }
+}
+
 /**
- * Розово-голубой фон с медленно плывущими пузырьками, звёздочками и искорками.
- * Рисуется на Canvas без размытий; время читается только в фазе отрисовки — без лишних перекомпоновок.
+ * Фон всех экранов: небо с облаками, поверх — переливающиеся пятна света и плывущие пузырьки со звёздочками.
+ * Всё рисуется на Canvas без размытий; время читается только в фазе отрисовки — без лишних перекомпоновок.
  */
 @Composable
 fun MagicBackground(content: @Composable BoxScope.() -> Unit) {
-    val t by rememberInfiniteTransition(label = "bg").animateFloat(
+    val clock = rememberInfiniteTransition(label = "bg").animateFloat(
         0f, 1f, infiniteRepeatable(tween(30_000, easing = LinearEasing)), label = "bgT",
     )
-    Box(
-        Modifier.fillMaxSize().background(Palette.background).drawBehind {
-            floaters.forEach { f ->
-                val y = ((f.y - t * f.speed) % 1f + 1f) % 1f * (size.height + 80f) - 40f
-                val x = f.x * size.width + sin((t * f.speed * 6f + f.phase) * 2f * PI.toFloat()) * 18f
-                val s = f.size * density / 2.2f
-                when (f.kind) {
-                    0 -> {
-                        drawCircle(Color.White.copy(alpha = 0.28f), s, Offset(x, y))
-                        drawCircle(Color.White.copy(alpha = 0.7f), s, Offset(x, y), style = Stroke(1.5f * density))
-                        drawCircle(Color.White.copy(alpha = 0.8f), s * 0.22f, Offset(x - s * 0.35f, y - s * 0.35f))
-                    }
-                    1 -> translate(x - s, y - s) { scale(s * 2 / 48f, s * 2 / 48f, pivot = Offset.Zero) { AppIcons.STAR.fill.forEach { drawPath(it, f.color.copy(alpha = 0.35f)) } } }
-                    else -> translate(x - s, y - s) { scale(s * 2 / 48f, s * 2 / 48f, pivot = Offset.Zero) { AppIcons.SPARKLE.fill.forEach { drawPath(it, f.color.copy(alpha = 0.4f)) } } }
+    val sky = rememberSky()
+    CompositionLocalProvider(LocalGlassClock provides clock) {
+        Box(
+            Modifier.fillMaxSize().background(Palette.background).drawBehind {
+                val t = clock.value
+                if (sky != null) {
+                    // Как ContentScale.Crop: заполняем экран, лишнее по краям обрезается.
+                    val k = maxOf(size.width / sky.width, size.height / sky.height)
+                    val w = (sky.width * k).toInt()
+                    val h = (sky.height * k).toInt()
+                    drawImage(
+                        sky, dstOffset = IntOffset(((size.width - w) / 2).toInt(), ((size.height - h) / 2).toInt()),
+                        dstSize = IntSize(w, h), filterQuality = FilterQuality.Low,
+                    )
                 }
-            }
-        },
-        content = content,
+                glows.forEach { g ->
+                    val a = 2f * PI.toFloat() * (t * g.speed + g.phase)
+                    val c = Offset((g.x + 0.14f * sin(a)) * size.width, (g.y + 0.07f * cos(a * 1.5f)) * size.height)
+                    val r = g.r * size.width * (1f + 0.15f * sin(a * 2f))
+                    drawCircle(Brush.radialGradient(listOf(g.color.copy(alpha = 0.34f), g.color.copy(alpha = 0f)), c, r), r, c)
+                }
+                floaters.forEach { f ->
+                    val y = ((f.y - t * f.speed) % 1f + 1f) % 1f * (size.height + 80f) - 40f
+                    val x = f.x * size.width + sin((t * f.speed * 6f + f.phase) * 2f * PI.toFloat()) * 18f
+                    val s = f.size * density / 2.2f
+                    when (f.kind) {
+                        0 -> {
+                            drawCircle(Color.White.copy(alpha = 0.22f), s, Offset(x, y))
+                            drawCircle(Color.White.copy(alpha = 0.75f), s, Offset(x, y), style = Stroke(1.5f * density))
+                            drawCircle(Color.White.copy(alpha = 0.85f), s * 0.22f, Offset(x - s * 0.35f, y - s * 0.35f))
+                        }
+                        1 -> translate(x - s, y - s) { scale(s * 2 / 48f, s * 2 / 48f, pivot = Offset.Zero) { AppIcons.STAR.fill.forEach { drawPath(it, f.color.copy(alpha = 0.45f)) } } }
+                        else -> translate(x - s, y - s) { scale(s * 2 / 48f, s * 2 / 48f, pivot = Offset.Zero) { AppIcons.SPARKLE.fill.forEach { drawPath(it, Color.White.copy(alpha = 0.8f)) } } }
+                    }
+                }
+            },
+            content = content,
+        )
+    }
+}
+
+/* ======================= Стекло ======================= */
+
+/** Светлая рамка стекла: ярче сверху-слева, где «падает свет». */
+val GlassRim: Brush = Brush.linearGradient(listOf(Color.White.copy(alpha = 0.95f), Color.White.copy(alpha = 0.3f), Color.White.copy(alpha = 0.7f)))
+
+/** Тень под светлым текстом на цветном стекле — чтобы читался на любом фоне. */
+val GlassTextShadow = Shadow(Color(0x77402060), Offset(0f, 2f), 5f)
+
+/** Блики стекла: светлая верхняя половина и отражение снизу. */
+private fun DrawScope.drawGloss() {
+    drawRect(
+        Brush.verticalGradient(
+            0f to Color.White.copy(alpha = 0.5f), 0.46f to Color.White.copy(alpha = 0.1f),
+            0.5f to Color.Transparent, 0.8f to Color.Transparent, 1f to Color.White.copy(alpha = 0.22f),
+        ),
     )
 }
 
-/* ======================= Конфетные 3D-кнопки ======================= */
+/** Стеклянная подложка: полупрозрачная заливка, блики и светлая рамка. Без размытия — дёшево. */
+fun Modifier.glass(shape: Shape, tint: Color = Color.White.copy(alpha = 0.62f), rim: Dp = 1.5.dp): Modifier =
+    this.clip(shape).background(tint).drawBehind { drawGloss() }.border(rim, GlassRim, shape)
 
-/** «Дно» кнопки — более тёмный тон под лицевой частью, даёт объём. */
-fun baseColorFor(brush: Brush): Color = when {
-    brush === Palette.pinkish -> Color(0xFFA2448F)
-    brush === Palette.bluish -> Color(0xFF4A73C2)
-    brush === Palette.buttonSoft -> Color(0xFFB27BB4)
-    brush === Palette.button -> Color(0xFF8A4FB5)
-    brush === WhiteCandy -> Color(0xFFD9CDE6)
-    brush === GoodCandy -> Color(0xFF2E8A50)
-    brush === BadCandy -> Color(0xFFB3324F)
-    brush === DimCandy -> Color(0xFFD6CFE0)
-    else -> Color(0xFF7B6A9B)
+/** Цвет мягкого ореола вокруг стеклянной кнопки. */
+fun glowFor(brush: Brush): Color = when {
+    brush === Palette.pinkish -> Color(0xFFE05AA8)
+    brush === Palette.bluish -> Color(0xFF4F8FE0)
+    brush === Palette.buttonSoft -> Color(0xFFC98BD0)
+    brush === Palette.button -> Color(0xFFA25BD0)
+    brush === GlassGood -> Color(0xFF2E9A58)
+    brush === GlassBad -> Color(0xFFD03A62)
+    else -> Color.White
 }
 
+private val GlassDisabled: Brush = Brush.linearGradient(listOf(Color(0x88CFC8DA), Color(0x88B9B1C7)))
+
 /**
- * Объёмная кнопка-конфета: при нажатии лицевая часть «вдавливается», телефон слегка вибрирует,
- * сверху — глянцевый блик. appear ≥ 0 — кнопка появляется волной (задержка по номеру).
+ * Стеклянная кнопка: цветное полупрозрачное стекло с бликом и светлой рамкой, по нему время от времени
+ * пробегает отсвет. При нажатии стекло светлеет и чуть сжимается, телефон слегка вибрирует.
+ * appear ≥ 0 — кнопка появляется волной (задержка по номеру). depth — насколько ореол уходит вниз.
  */
 @Composable
-fun CandyButton(
+fun GlassButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     brush: Brush = Palette.button,
@@ -219,38 +301,51 @@ fun CandyButton(
     val pressed by interaction.collectIsPressedAsState()
     val press by animateFloatAsState(if (pressed && enabled) 1f else 0f, spring(stiffness = 900f), label = "press")
     val haptic = LocalHapticFeedback.current
+    val clock = LocalGlassClock.current
+    val seed = remember { Random.nextFloat() }
     val shown = remember { Animatable(if (appear >= 0) 0f else 1f) }
     if (appear >= 0) LaunchedEffect(Unit) { delay(appear * 70L); shown.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = 300f)) }
-    val face = if (enabled) brush else Brush.linearGradient(listOf(Color(0xFFCFC8DA), Color(0xFFB9B1C7)))
-    val base = if (enabled) baseColorFor(brush) else Color(0xFF9C93AC)
+    val face = if (enabled) brush else GlassDisabled
+    val glow = if (enabled) glowFor(brush) else Color(0xFF9C93AC)
     Box(
         modifier
             .graphicsLayer {
                 alpha = shown.value.coerceIn(0f, 1f)
                 translationY = (1f - shown.value) * 40.dp.toPx()
-                val s = 1f - press * 0.02f
+                val s = 1f - press * 0.04f
                 scaleX = s; scaleY = s
             }
-            .padding(bottom = depth),
+            .padding(bottom = depth / 2),
     ) {
         Row(
             (if (fillWidth) Modifier.fillMaxWidth() else Modifier)
-                .offset(y = depth * press)
                 .drawBehind {
-                    // «Дно» конфеты — та же форма, сдвинутая вниз; при нажатии лицевая часть опускается на него.
+                    // Мягкий ореол вокруг стекла: две полупрозрачные обводки, чуть смещённые вниз.
                     val outline = shape.createOutline(size, layoutDirection, this)
-                    translate(0f, depth.toPx() * (1f - press)) { drawOutline(outline, base) }
+                    translate(0f, depth.toPx() * 0.45f * (1f - press)) {
+                        drawOutline(outline, glow.copy(alpha = 0.16f), style = Stroke(9.dp.toPx()))
+                        drawOutline(outline, glow.copy(alpha = 0.24f), style = Stroke(4.dp.toPx()))
+                    }
                 }
                 .clip(shape)
                 .background(face)
                 .drawBehind {
-                    // Глянцевый блик сверху.
-                    val inset = 10.dp.toPx()
-                    drawRoundRect(
-                        Color.White.copy(alpha = 0.22f), Offset(inset, 4.dp.toPx()),
-                        Size(size.width - inset * 2, size.height * 0.36f), CornerRadius(size.height * 0.2f),
-                    )
+                    drawGloss()
+                    // Бегущий отсвет: раз в ~6 секунд косая светлая полоса проходит по стеклу.
+                    val phase = (clock.value * 5f + seed) % 1f
+                    if (phase < 0.2f) {
+                        val x = -size.height + phase / 0.2f * (size.width + size.height * 2)
+                        val band = 28.dp.toPx()
+                        drawRect(
+                            Brush.linearGradient(
+                                listOf(Color.Transparent, Color.White.copy(alpha = 0.45f), Color.Transparent),
+                                start = Offset(x, 0f), end = Offset(x + band, band * 0.8f),
+                            ),
+                        )
+                    }
+                    if (press > 0f) drawRect(Color.White.copy(alpha = 0.2f * press))
                 }
+                .border(1.5.dp, GlassRim, shape)
                 .clickable(interaction, indication = null, enabled = enabled) {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onClick()
@@ -262,11 +357,11 @@ fun CandyButton(
     }
 }
 
-/** Белый кружок-«фишка» с иконкой — для больших кнопок. */
+/** Стеклянная «фишка» с иконкой — для больших кнопок. */
 @Composable
 fun IconChip(spec: IconSpec?, emoji: String, size: Dp = 52.dp) {
     Box(
-        Modifier.size(size).shadow(3.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color.White),
+        Modifier.size(size).glass(RoundedCornerShape(16.dp), Color.White.copy(alpha = 0.78f)),
         contentAlignment = Alignment.Center,
     ) {
         if (spec != null) AppIcon(spec, size = size * 0.72f) else Text(emoji, fontSize = (size.value * 0.55f).sp)
@@ -364,7 +459,7 @@ fun Sticker(emoji: String, size: Dp, seed: Int = emoji.hashCode(), modifier: Mod
 
 /** Прогресс-бар с переливом и звёздочкой на конце. */
 @Composable
-fun CandyProgress(progress: Float, modifier: Modifier = Modifier) {
+fun GlassProgress(progress: Float, modifier: Modifier = Modifier) {
     val p by animateFloatAsState(progress.coerceIn(0f, 1f), spring(stiffness = 120f), label = "progress")
     val shimmer by rememberInfiniteTransition(label = "shimmer").animateFloat(
         0f, 1f, infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Restart), label = "sh",
@@ -372,7 +467,8 @@ fun CandyProgress(progress: Float, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().height(22.dp)) {
         Canvas(Modifier.fillMaxWidth().height(14.dp).align(Alignment.CenterStart)) {
             val r = CornerRadius(size.height / 2)
-            drawRoundRect(Color.White.copy(alpha = 0.85f), cornerRadius = r)
+            drawRoundRect(Color.White.copy(alpha = 0.5f), cornerRadius = r)
+            drawRoundRect(Color.White, cornerRadius = r, style = Stroke(1.5f * density))
             val w = size.width * p
             if (w > 1f) {
                 drawRoundRect(Palette.button, size = Size(w, size.height), cornerRadius = r)
@@ -417,8 +513,7 @@ fun CounterBadge(spec: IconSpec, value: Int, flicker: Boolean = false) {
         0.92f, 1.08f, infiniteRepeatable(tween(420), RepeatMode.Reverse), label = "f",
     )
     Row(
-        Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.9f))
-            .border(2.dp, Color.White, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp),
+        Modifier.glass(RoundedCornerShape(50), Color.White.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AppIcon(spec, Modifier.graphicsLayer { if (flicker) { scaleX = f; scaleY = 2f - f } }, size = 24.dp)

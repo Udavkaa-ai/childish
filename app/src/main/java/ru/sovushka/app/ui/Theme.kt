@@ -29,13 +29,15 @@ object Palette {
     val Muted = Color(0xFF7A7499)
     val Good = Color(0xFF43A047)
     val Bad = Color(0xFFE5486F)
-    val Card = Color(0xFFFFFFFF)
+    /** Карточки — светлое полупрозрачное стекло. */
+    val Card = Color(0xB8FFFFFF)
 
     val background = Brush.verticalGradient(listOf(Color(0xFFFFEAF4), Color(0xFFEAF4FF)))
-    val button = Brush.linearGradient(listOf(Pink, Blue))
-    val buttonSoft = Brush.linearGradient(listOf(Color(0xFFF48FB1), Color(0xFF90CAF9)))
-    val pinkish = Brush.linearGradient(listOf(Color(0xFFF06BA8), Color(0xFFBA68C8)))
-    val bluish = Brush.linearGradient(listOf(Color(0xFF7E8CE0), Color(0xFF4FC3F7)))
+    // Цветное стекло: те же розово-голубые градиенты, но полупрозрачные — сквозь них видно небо.
+    val button = Brush.linearGradient(listOf(Pink.copy(alpha = 0.8f), Blue.copy(alpha = 0.8f)))
+    val buttonSoft = Brush.linearGradient(listOf(Color(0xA8F06BA8), Color(0xA86FB4F0)))
+    val pinkish = Brush.linearGradient(listOf(Color(0xCCF06BA8), Color(0xCCB063CC)))
+    val bluish = Brush.linearGradient(listOf(Color(0xCC6F7FE0), Color(0xCC3FB5F0)))
 }
 
 @Composable
@@ -78,6 +80,6 @@ val Nunito = FontFamily(
     Font(R.font.nunito_black, FontWeight.Black),
 )
 
-/** Фон всех экранов: живой градиент с плывущими пузырьками и звёздочками. */
+/** Фон всех экранов: небо, переливы света и плывущие пузырьки со звёздочками. */
 @Composable
 fun GradientScreen(content: @Composable BoxScope.() -> Unit) = MagicBackground(content)

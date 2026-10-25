@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -52,7 +53,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.sovushka.app.graph
 
-/** Большая конфетная кнопка с иконкой — основной элемент навигации. */
+/** Большая стеклянная кнопка с иконкой — основной элемент навигации. */
 @Composable
 fun BigButton(
     emoji: String,
@@ -64,12 +65,12 @@ fun BigButton(
     appear: Int = -1,
     onClick: () -> Unit,
 ) {
-    CandyButton(onClick, modifier.fillMaxWidth(), brush = brush, enabled = enabled, appear = appear, fillWidth = true) {
+    GlassButton(onClick, modifier.fillMaxWidth(), brush = brush, enabled = enabled, appear = appear, fillWidth = true) {
         IconChip(iconFor(emoji), emoji)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Black)
-            if (subtitle != null) Text(subtitle, color = Color.White.copy(alpha = 0.92f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Black, style = TextStyle(shadow = GlassTextShadow))
+            if (subtitle != null) Text(subtitle, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, style = TextStyle(shadow = GlassTextShadow))
         }
     }
 }
@@ -79,12 +80,13 @@ fun BigButton(
 fun PillButton(text: String, modifier: Modifier = Modifier, brush: Brush = Palette.button, enabled: Boolean = true, onClick: () -> Unit) {
     // Если кнопке задали ширину (weight, fillMaxWidth) — растягиваем лицевую часть, иначе кнопка по размеру текста.
     val fill = modifier != Modifier
-    CandyButton(
+    GlassButton(
         onClick, modifier, brush = brush, shape = RoundedCornerShape(50), depth = 4.dp, enabled = enabled, fillWidth = fill,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 11.dp),
     ) {
         Text(
             text, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center,
+            style = TextStyle(shadow = GlassTextShadow),
             modifier = if (fill) Modifier.weight(1f) else Modifier,
         )
     }
@@ -97,8 +99,8 @@ fun TopBar(title: String, onBack: (() -> Unit)?, trailing: @Composable () -> Uni
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onBack != null) {
-            CandyButton(
-                onBack, brush = WhiteCandy, shape = CircleShape, depth = 4.dp,
+            GlassButton(
+                onBack, brush = GlassWhite, shape = CircleShape, depth = 4.dp,
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(9.dp),
             ) { AppIcon(AppIcons.BACK, size = 30.dp) }
             Spacer(Modifier.width(10.dp))
@@ -121,14 +123,11 @@ fun NikaSays(text: String, mood: NikaMood, talking: Boolean, modifier: Modifier 
                     val p = androidx.compose.ui.graphics.Path().apply {
                         moveTo(size.width, 0f); lineTo(0f, size.height / 2); lineTo(size.width, size.height); close()
                     }
-                    drawPath(p, Color.White)
+                    drawPath(p, Color.White.copy(alpha = 0.86f))
                 }
                 Box(
                     Modifier
-                        .shadow(4.dp, RoundedCornerShape(22.dp))
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(Color.White)
-                        .border(2.dp, Palette.buttonSoft, RoundedCornerShape(22.dp))
+                        .glass(RoundedCornerShape(22.dp), Color.White.copy(alpha = 0.86f), rim = 2.dp)
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                 ) { Text(text, style = MaterialTheme.typography.bodyLarge) }
             }
@@ -136,16 +135,13 @@ fun NikaSays(text: String, mood: NikaMood, talking: Boolean, modifier: Modifier 
     }
 }
 
-/** Белая карточка-подложка. */
+/** Карточка-подложка из светлого стекла. */
 @Composable
 fun CardBox(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
         modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(22.dp))
-            .clip(RoundedCornerShape(22.dp))
-            .background(Palette.Card)
-            .border(2.dp, Color(0xFFF3E8F7), RoundedCornerShape(22.dp))
+            .glass(RoundedCornerShape(22.dp), Color.White.copy(alpha = 0.74f), rim = 2.dp)
             .padding(16.dp),
     ) { content() }
 }
@@ -155,13 +151,13 @@ enum class ChoiceState { NORMAL, RIGHT, WRONG, DIM }
 @Composable
 fun ChoiceButton(text: String, state: ChoiceState, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val brush = when (state) {
-        ChoiceState.RIGHT -> GoodCandy
-        ChoiceState.WRONG -> BadCandy
-        ChoiceState.DIM -> DimCandy
-        ChoiceState.NORMAL -> WhiteCandy
+        ChoiceState.RIGHT -> GlassGood
+        ChoiceState.WRONG -> GlassBad
+        ChoiceState.DIM -> GlassDim
+        ChoiceState.NORMAL -> GlassWhite
     }
     val fg = if (state == ChoiceState.RIGHT || state == ChoiceState.WRONG) Color.White else Palette.Ink
-    CandyButton(
+    GlassButton(
         { if (state == ChoiceState.NORMAL) onClick() }, modifier.fillMaxWidth(), brush = brush, shape = RoundedCornerShape(20.dp), depth = 5.dp, fillWidth = true,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 15.dp),
     ) {
@@ -193,8 +189,8 @@ fun MicButton(listening: Boolean, level: Float, size: Dp = 96.dp, label: String 
         },
         contentAlignment = Alignment.Center,
     ) {
-        CandyButton(
-            onClick, Modifier.scale(scale), brush = if (listening) BadCandy else Palette.button, shape = CircleShape, depth = 6.dp,
+        GlassButton(
+            onClick, Modifier.scale(scale), brush = if (listening) GlassBad else Palette.button, shape = CircleShape, depth = 6.dp,
             contentPadding = androidx.compose.foundation.layout.PaddingValues(size * 0.2f),
         ) {
             val spec = iconFor(label)
@@ -208,7 +204,7 @@ fun Stars(count: Int, max: Int = 3, size: Int = 44) = PopStars(count, max, size.
 
 @Composable
 fun SoundButton(onClick: () -> Unit, slow: Boolean = false) {
-    CandyButton(
+    GlassButton(
         onClick, brush = if (slow) Palette.bluish else Palette.pinkish, shape = CircleShape, depth = 4.dp,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp),
     ) { AppIcon(if (slow) AppIcons.TURTLE else AppIcons.SPEAKER, size = 34.dp, tint = Color.White) }
@@ -231,7 +227,7 @@ fun KidAvatar(older: Boolean, emoji: String, size: Dp, modifier: Modifier = Modi
         }
     }
     Box(
-        modifier.size(size).shadow(4.dp, CircleShape).clip(CircleShape).background(Color.White.copy(alpha = 0.9f)),
+        modifier.size(size).shadow(4.dp, CircleShape).clip(CircleShape).background(Color.White.copy(alpha = 0.9f)).border(2.dp, GlassRim, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         val b = bmp
@@ -243,8 +239,8 @@ fun KidAvatar(older: Boolean, emoji: String, size: Dp, modifier: Modifier = Modi
     }
 }
 
-/** Конфетные «окраски» для кнопок-ответов и белых кнопок. */
-val WhiteCandy: Brush = Brush.verticalGradient(listOf(Color.White, Color(0xFFF7F1FB)))
-val GoodCandy: Brush = Brush.verticalGradient(listOf(Color(0xFF6BD48F), Color(0xFF3FB56C)))
-val BadCandy: Brush = Brush.verticalGradient(listOf(Color(0xFFFF7E9D), Color(0xFFE5486F)))
-val DimCandy: Brush = Brush.verticalGradient(listOf(Color(0xFFF4F0F8), Color(0xFFEAE4F1)))
+/** Стёкла для кнопок-ответов и светлых кнопок. */
+val GlassWhite: Brush = Brush.verticalGradient(listOf(Color(0xD9FFFFFF), Color(0x9EFFFFFF)))
+val GlassGood: Brush = Brush.verticalGradient(listOf(Color(0xE06BD48F), Color(0xE03FB56C)))
+val GlassBad: Brush = Brush.verticalGradient(listOf(Color(0xE0FF7E9D), Color(0xE0E5486F)))
+val GlassDim: Brush = Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x4DFFFFFF)))

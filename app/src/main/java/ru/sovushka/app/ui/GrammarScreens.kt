@@ -1,6 +1,8 @@
 package ru.sovushka.app.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,11 +32,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import ru.sovushka.app.R
 import ru.sovushka.app.graph
 import ru.sovushka.app.today
 import ru.sovushka.core.GrammarBank
@@ -74,7 +79,7 @@ fun GrammarScreen(vm: AppViewModel) {
                     items(topics, key = { it.id }) { topic ->
                         val st = data.grammar[topic.id]
                         Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Palette.Card)
+                            Modifier.fillMaxWidth().glass(RoundedCornerShape(16.dp), Palette.Card)
                                 .clickable { vm.go(Screen.Topic(topic.id)) }.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -108,7 +113,6 @@ fun TopicScreen(vm: AppViewModel, id: String) {
     val topic = GrammarBank.topic(id) ?: return
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    val extra = data.extraDrills[id].orEmpty()
 
     GradientScreen {
         Column(Modifier.fillMaxSize()) {
@@ -138,11 +142,18 @@ fun TopicScreen(vm: AppViewModel, id: String) {
                         }
                     }
                 }
+                TOPIC_COMICS[id]?.let { res ->
+                    Image(
+                        painterResource(res), "Комикс с Никой",
+                        Modifier.fillMaxWidth().aspectRatio(1f).glass(RoundedCornerShape(22.dp), Color.White.copy(alpha = 0.8f), rim = 3.dp).padding(4.dp)
+                            .clip(RoundedCornerShape(18.dp)),
+                    )
+                }
                 message?.let { Text(it, color = Palette.Muted) }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
             Column(Modifier.navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                BigButton("▶️", "Тренировать", subtitle = "Заданий в теме: ${topic.drills.size + extra.size}") {
+                BigButton("▶️", "Тренировать", subtitle = "Заданий в теме: ${data.drillsOf(id).size}") {
                     vm.go(Screen.Practice(null, topicId = id))
                 }
                 BigButton("✨", "Ещё задания от Ники", subtitle = "Нейросеть придумает новые упражнения", brush = Palette.buttonSoft, enabled = !busy) {
@@ -178,3 +189,8 @@ fun TopicScreen(vm: AppViewModel, id: String) {
         }
     }
 }
+
+/** Комиксы с Никой к темам (нарисованы в OpenArt по референсу персонажа). */
+private val TOPIC_COMICS = mapOf(
+    "this_these" to R.drawable.comic_this_these,
+)

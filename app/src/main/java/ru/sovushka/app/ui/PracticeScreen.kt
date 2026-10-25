@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -72,8 +73,12 @@ class PracticeState(tasks: List<Task>) {
     var shakes by mutableIntStateOf(0)
     var finished by mutableStateOf(false)
     val wrongs = mutableMapOf<String, Int>()
+    /** Ответы на грамматические задания: упражнение → верно ли. */
+    private val grammarLog = mutableListOf<Pair<Drill, Boolean>>()
     /** Тема → были ли ошибки (false — всё верно). */
-    val topicErrors = mutableMapOf<String, Boolean>()
+    val topicErrors: Map<String, Boolean>
+        get() = grammarLog.filter { it.first.topic.isNotBlank() }
+            .groupBy({ it.first.topic }, { it.second }).mapValues { (_, oks) -> !oks.all { it } }
     private val requeued = mutableSetOf<Task>()
     var correct = 0
     var total = 0
@@ -85,9 +90,7 @@ class PracticeState(tasks: List<Task>) {
         if (result != null) return
         result = ok
         total++
-        if (t is Task.Grammar && t.drill.topic.isNotBlank()) {
-            topicErrors[t.drill.topic] = (topicErrors[t.drill.topic] ?: false) || !ok
-        }
+        if (t is Task.Grammar) grammarLog.add(t.drill to ok)
         if (ok) burst++ else shakes++
         if (ok) correct++ else {
             t.word?.let { wrongs[it.id] = (wrongs[it.id] ?: 0) + 1 }
@@ -99,6 +102,21 @@ class PracticeState(tasks: List<Task>) {
         result = null
         feedback = ""
         if (index + 1 >= queue.size) finished = true else index++
+    }
+
+    /** Ребёнок нашёл ошибку в задании: не считаем его ни верным, ни ошибкой и убираем повторы из очереди. */
+    fun dropBad() {
+        val t = task as? Task.Grammar ?: return
+        val key = t.drill.key
+        val mine = grammarLog.filter { it.first.key == key }
+        total -= mine.size
+        correct -= mine.count { it.second }
+        grammarLog.removeAll { it.first.key == key }
+        for (i in queue.indices.reversed()) {
+            if (i > index && (queue[i] as? Task.Grammar)?.drill?.key == key) queue.removeAt(i)
+        }
+        next()
+        feedback = "Спасибо! Я убрала это задание."
     }
 }
 
@@ -172,7 +190,7 @@ fun PracticeScreen(vm: AppViewModel, screen: Screen.Practice) {
                 Results(state, stars, talking, onAgain = { vm.replace(Screen.Practice(screen.lessonId, topicId = screen.topicId)) }, onHome = { vm.back() })
                 return@Column
             }
-            CandyProgress(state.index.toFloat() / state.queue.size, Modifier.padding(horizontal = 16.dp))
+            GlassProgress(state.index.toFloat() / state.queue.size, Modifier.padding(horizontal = 16.dp))
             val mood = when {
                 state.result == true -> NikaMood.HAPPY
                 state.result == false -> NikaMood.SAD
@@ -519,6 +537,29 @@ private fun GrammarTask(g: AppGraph, state: PracticeState, t: Task.Grammar) {
     if (state.result != null && d.explain.isNotBlank()) {
         CardBox { Text("💡 ${d.explain}", fontSize = 16.sp) }
     }
+    ReportBadDrill {
+        scope.launch { g.store.update { it.withoutDrill(d) } }
+        g.speaker.stop()
+        state.dropBad()
+    }
+}
+
+/** «В задании ошибка»: задания придумывает нейросеть, и иногда русская фраза не совпадает с английской. */
+@Composable
+private fun ReportBadDrill(onConfirm: () -> Unit) {
+    var ask by remember { mutableStateOf(false) }
+    TextButton(onClick = { ask = true }, modifier = Modifier.fillMaxWidth()) {
+        Text("🚩 В задании ошибка", color = Palette.Muted, fontSize = 15.sp)
+    }
+    if (ask) {
+        AlertDialog(
+            onDismissRequest = { ask = false },
+            title = { Text("Задание с ошибкой?") },
+            text = { Text("Если задание нельзя решить правильно, Ника уберёт его и больше не покажет. Оно не засчитается как ошибка.") },
+            confirmButton = { TextButton(onClick = { ask = false; onConfirm() }) { Text("Да, убрать") } },
+            dismissButton = { TextButton(onClick = { ask = false }) { Text("Нет, решу") } },
+        )
+    }
 }
 
 @Composable
@@ -537,9 +578,8 @@ private fun TokenRows(tokens: List<String>, onTap: (Int) -> Unit) {
                 r.forEach { i ->
                     val s = tokens[i]
                     Box(
-                        Modifier.padding(4.dp).clip(RoundedCornerShape(12.dp))
-                            .background(if (s.isEmpty()) Color.Transparent else Color.White)
-                            .border(2.dp, if (s.isEmpty()) Color.Transparent else Palette.PinkLight, RoundedCornerShape(12.dp))
+                        Modifier.padding(4.dp)
+                            .then(if (s.isEmpty()) Modifier else Modifier.glass(RoundedCornerShape(12.dp), Color.White.copy(alpha = 0.82f), rim = 2.dp))
                             .clickable(enabled = s.isNotEmpty()) { onTap(i) }
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                     ) { Text(s, fontSize = 20.sp, fontWeight = FontWeight.SemiBold) }

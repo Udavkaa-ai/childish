@@ -109,7 +109,7 @@ fun ProfilesScreen(vm: AppViewModel) {
             Spacer(Modifier.weight(1f))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Row(
-                    Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.7f))
+                    Modifier.glass(RoundedCornerShape(50), Color.White.copy(alpha = 0.6f))
                         .clickable { vm.go(Screen.ParentGate(Screen.Settings)) }.padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -123,13 +123,13 @@ fun ProfilesScreen(vm: AppViewModel) {
 
 @Composable
 private fun ProfileCard(older: Boolean, emoji: String, name: String, subtitle: String, brush: androidx.compose.ui.graphics.Brush, appear: Int, onClick: () -> Unit) {
-    CandyButton(onClick, Modifier.fillMaxWidth(), brush = brush, shape = RoundedCornerShape(30.dp), depth = 8.dp, appear = appear, fillWidth = true,
+    GlassButton(onClick, Modifier.fillMaxWidth(), brush = brush, shape = RoundedCornerShape(30.dp), depth = 8.dp, appear = appear, fillWidth = true,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp)) {
         KidAvatar(older, emoji, 84.dp)
         Spacer(Modifier.width(16.dp))
         Column {
-            Text(name, color = Color.White, fontSize = 31.sp, fontWeight = FontWeight.Black)
-            Text(subtitle, color = Color.White.copy(alpha = 0.92f), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(name, color = Color.White, fontSize = 31.sp, fontWeight = FontWeight.Black, style = androidx.compose.ui.text.TextStyle(shadow = GlassTextShadow))
+            Text(subtitle, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, style = androidx.compose.ui.text.TextStyle(shadow = GlassTextShadow))
         }
     }
 }

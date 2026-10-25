@@ -89,4 +89,19 @@ class GrammarTest {
         assertTrue(LessonGenerator.systemPrompt(10).contains("present_simple"))
         assertEquals(1, DrillGenerator.parse("""Вот: {"drills":[{"kind":"gap","prompt":"I ___ ten.","options":["am","is"],"answer":"am"}]}""").size)
     }
+
+    @Test
+    fun badDrillIsHiddenEverywhere() {
+        val bank = GrammarBank.topic("to_be")!!.drills.first()
+        val mine = Drill(Drill.ORDER, prompt = "Его сестра делает песочный замок.", answer = "Nell is making a sandcastle", topic = "to_be")
+        val data = AppData(
+            lessons = listOf(Lesson(id = "l1", title = "t", createdAt = 0, drills = listOf(mine))),
+            extraDrills = mapOf("to_be" to listOf(mine)),
+        )
+        val clean = data.withoutDrill(mine).withoutDrill(bank)
+        assertTrue(clean.lessons.single().drills.isEmpty())
+        assertFalse(clean.drillsOf("to_be").any { it.key == mine.key || it.key == bank.key })
+        assertEquals(data.drillsOf("to_be").size - 2, clean.drillsOf("to_be").size)
+        assertTrue(LessonGenerator.systemPrompt(10).contains("слово в слово"))
+    }
 }

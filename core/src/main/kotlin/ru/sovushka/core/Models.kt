@@ -77,10 +77,19 @@ data class AppData(
     val grammar: Map<String, TopicStats> = emptyMap(),
     /** Дополнительные упражнения по темам от нейросети («Ещё задания от Ники»). */
     val extraDrills: Map<String, List<Drill>> = emptyMap(),
+    /** Упражнения, в которых ребёнок нашёл ошибку («🚩 В задании ошибка») — больше не показываем. */
+    val badDrills: Set<String> = emptySet(),
 ) {
     /** Все упражнения темы: встроенные и придуманные нейросетью. */
     fun drillsOf(topicId: String): List<Drill> =
-        GrammarBank.topic(topicId)?.drills.orEmpty() + extraDrills[topicId].orEmpty()
+        (GrammarBank.topic(topicId)?.drills.orEmpty() + extraDrills[topicId].orEmpty()).filter { it.key !in badDrills }
+
+    /** Убрать ошибочное упражнение отовсюду: из уроков, из дополнительных и из встроенных (через список). */
+    fun withoutDrill(d: Drill): AppData = copy(
+        lessons = lessons.map { l -> if (l.drills.any { it.key == d.key }) l.copy(drills = l.drills.filter { it.key != d.key }) else l },
+        extraDrills = extraDrills.mapValues { (_, list) -> list.filter { it.key != d.key } },
+        badDrills = badDrills + d.key,
+    )
 
     /** Темы, которые пора повторить. */
     fun dueTopics(today: Long): List<String> = grammar.filter { (_, s) -> s.box > 0 && s.due <= today }.keys.toList()

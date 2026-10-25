@@ -195,7 +195,7 @@ fun DraftScreen(vm: AppViewModel) {
                 items(words.size) { i ->
                     val w = words[i]
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Palette.Card).clickable { editing = i }.padding(12.dp),
+                        Modifier.fillMaxWidth().glass(RoundedCornerShape(14.dp), Palette.Card).clickable { editing = i }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (w.emoji.isNotBlank()) Sticker(w.emoji, 44.dp, seed = w.en.hashCode()) else AppIcon(AppIcons.PENCIL, size = 38.dp)
@@ -281,7 +281,7 @@ fun LessonsScreen(vm: AppViewModel) {
                     val ws = data.wordsOf(l.id)
                     val mastery = Srs.mastery(ws)
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Palette.Card).clickable { vm.go(Screen.Lesson(l.id)) }.padding(12.dp),
+                        Modifier.fillMaxWidth().glass(RoundedCornerShape(18.dp), Palette.Card).clickable { vm.go(Screen.Lesson(l.id)) }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (l.photos.isNotEmpty()) PhotoThumb(l.photos.first(), 56) else ws.firstOrNull()?.emoji?.ifBlank { null }?.let { Sticker(it, 56.dp) } ?: AppIcon(AppIcons.BOOKS, size = 52.dp)
@@ -349,7 +349,7 @@ fun LessonScreen(vm: AppViewModel, id: String) {
                 }
                 items(words, key = { it.id }) { w ->
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Palette.Card)
+                        Modifier.fillMaxWidth().glass(RoundedCornerShape(14.dp), Palette.Card)
                             .clickable { g.speaker.speak(w.en, SpeechText.Lang.EN) }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
