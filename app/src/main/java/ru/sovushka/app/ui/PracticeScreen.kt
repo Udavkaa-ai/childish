@@ -50,11 +50,14 @@ import ru.sovushka.app.AppGraph
 import ru.sovushka.app.graph
 import ru.sovushka.app.today
 import ru.sovushka.app.voice.ListenException
+import ru.sovushka.core.Drill
+import ru.sovushka.core.GrammarBank
 import ru.sovushka.core.SessionBuilder
 import ru.sovushka.core.SpeechText
 import ru.sovushka.core.Srs
 import ru.sovushka.core.Task
 import ru.sovushka.core.TextMatch
+import ru.sovushka.core.TopicStats
 import ru.sovushka.core.Word
 
 /** Ход тренировки: очередь заданий, ошибки, счёт. Ошибочное задание один раз повторяется в конце. */
@@ -65,6 +68,8 @@ class PracticeState(tasks: List<Task>) {
     var feedback by mutableStateOf("")
     var finished by mutableStateOf(false)
     val wrongs = mutableMapOf<String, Int>()
+    /** Тема → были ли ошибки (false — всё верно). */
+    val topicErrors = mutableMapOf<String, Boolean>()
     private val requeued = mutableSetOf<Task>()
     var correct = 0
     var total = 0
@@ -76,6 +81,9 @@ class PracticeState(tasks: List<Task>) {
         if (result != null) return
         result = ok
         total++
+        if (t is Task.Grammar && t.drill.topic.isNotBlank()) {
+            topicErrors[t.drill.topic] = (topicErrors[t.drill.topic] ?: false) || !ok
+        }
         if (ok) correct++ else {
             t.word?.let { wrongs[it.id] = (wrongs[it.id] ?: 0) + 1 }
             if (requeued.add(t)) queue.add(t)
@@ -99,11 +107,22 @@ fun PracticeScreen(vm: AppViewModel, screen: Screen.Practice) {
     val listening by g.listener.listening.collectAsState()
     val state = remember(screen) {
         val d = g.store.value
-        val tasks = if (screen.lessonId != null) {
-            val lesson = d.lessons.firstOrNull { it.id == screen.lessonId }
-            SessionBuilder.lesson(d.wordsOf(screen.lessonId), lesson?.sentences.orEmpty(), d.words, g.listener.available())
-        } else {
-            SessionBuilder.review(d.dueWords(today()), d.words, g.listener.available())
+        val tasks = when {
+            screen.topicId != null && screen.fresh > 0 ->
+                SessionBuilder.grammar(d.extraDrills[screen.topicId].orEmpty().takeLast(screen.fresh), screen.fresh)
+            screen.topicId != null -> SessionBuilder.grammar(d.drillsOf(screen.topicId), 8)
+            screen.lessonId != null -> {
+                val lesson = d.lessons.firstOrNull { it.id == screen.lessonId }
+                SessionBuilder.lesson(
+                    d.wordsOf(screen.lessonId), lesson?.sentences.orEmpty(), d.words, g.listener.available(),
+                    drills = lesson?.drills.orEmpty(),
+                    reviewDrills = lesson?.topics.orEmpty().flatMap { d.drillsOf(it) },
+                )
+            }
+            else -> SessionBuilder.review(
+                d.dueWords(today()), d.words, g.listener.available(),
+                drills = d.dueTopics(today()).flatMap { d.drillsOf(it) },
+            )
         }
         PracticeState(tasks)
     }
@@ -120,6 +139,9 @@ fun PracticeScreen(vm: AppViewModel, screen: Screen.Practice) {
                     if (l.id == screen.lessonId) l.copy(runs = l.runs + 1, bestStars = maxOf(l.bestStars, stars)) else l
                 },
                 older = d.older.addSession(t, stars),
+                grammar = d.grammar + state.topicErrors.map { (id, hadError) ->
+                    id to (d.grammar[id] ?: TopicStats()).review(!hadError, t)
+                },
             )
         }
         g.speaker.say(if (stars == 3) "Ура! Три звезды! You are a star!" else "Отличная тренировка! Молодец!")
@@ -129,13 +151,20 @@ fun PracticeScreen(vm: AppViewModel, screen: Screen.Practice) {
 
     GradientScreen {
         Column(Modifier.fillMaxSize()) {
-            TopBar(if (screen.lessonId == null) "Повторение" else "Тренировка", onBack = { vm.back() })
+            TopBar(
+                when {
+                    screen.topicId != null -> GrammarBank.topic(screen.topicId)?.title ?: "Правило"
+                    screen.lessonId == null -> "Повторение"
+                    else -> "Тренировка"
+                },
+                onBack = { vm.back() },
+            )
             if (state.queue.isEmpty()) {
                 NikaSays("Здесь пока нечего тренировать.", NikaMood.SAD, false, Modifier.padding(16.dp))
                 return@Column
             }
             if (state.finished) {
-                Results(state, stars, talking, onAgain = { vm.replace(Screen.Practice(screen.lessonId)) }, onHome = { vm.back() })
+                Results(state, stars, talking, onAgain = { vm.replace(Screen.Practice(screen.lessonId, topicId = screen.topicId)) }, onHome = { vm.back() })
                 return@Column
             }
             LinearProgressIndicator(
@@ -163,6 +192,7 @@ fun PracticeScreen(vm: AppViewModel, screen: Screen.Practice) {
                         is Task.Spell -> SpellTask(g, state, t.word, t.letters)
                         is Task.Say -> SayTask(g, state, t.word)
                         is Task.Build -> BuildTask(g, state, t)
+                        is Task.Grammar -> GrammarTask(g, state, t)
                         null -> {}
                     }
                 }
@@ -408,6 +438,77 @@ private fun BuildTask(g: AppGraph, state: PracticeState, t: Task.Build) {
             react(g, state, ok, null, scope, correctText = t.sentence.en)
             if (ok) scope.launch { g.speaker.say(t.sentence.en, SpeechText.Lang.EN) }
         }
+    }
+}
+
+/** Грамматика: вставить слово, выбрать правильное предложение или собрать предложение по-русски. */
+@Composable
+private fun GrammarTask(g: AppGraph, state: PracticeState, t: Task.Grammar) {
+    val scope = rememberCoroutineScope()
+    val d = t.drill
+    var picked by remember { mutableStateOf<String?>(null) }
+    val chosen = remember { mutableStateListOf<Int>() }
+
+    fun done(ok: Boolean) {
+        state.answer(ok)
+        scope.launch {
+            val p = PRAISE.random()
+            state.feedback = if (ok) p else "Почти! Правильно: ${d.fullSentence}"
+            if (!ok) g.speaker.say("Почти! Правильно:")
+            g.speaker.say(d.fullSentence, SpeechText.Lang.EN)
+            if (ok) g.speaker.say(p) else if (d.explain.isNotBlank()) g.speaker.say(d.explain)
+        }
+    }
+
+    Text(
+        when (d.kind) {
+            Drill.GAP -> "Вставь пропущенное слово"
+            Drill.CHOOSE -> "Выбери правильное предложение"
+            else -> "Собери предложение по-английски"
+        },
+        style = MaterialTheme.typography.titleMedium,
+    )
+    when (d.kind) {
+        Drill.GAP, Drill.CHOOSE -> {
+            if (d.kind == Drill.GAP) {
+                CardBox {
+                    Text(
+                        if (state.result == null) d.prompt.replace("___", "_____") else d.fullSentence,
+                        fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            t.choices.forEach { o ->
+                val st = when {
+                    picked == null -> ChoiceState.NORMAL
+                    o == d.answer -> ChoiceState.RIGHT
+                    o == picked -> ChoiceState.WRONG
+                    else -> ChoiceState.DIM
+                }
+                ChoiceButton(o, st) {
+                    picked = o
+                    done(TextMatch.normalize(o) == TextMatch.normalize(d.answer))
+                }
+            }
+        }
+        else -> {
+            Text(d.prompt, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            CardBox(Modifier.heightIn(min = 110.dp)) {
+                TokenRows(chosen.map { t.tiles[it] }) { idx -> if (state.result == null) chosen.removeAt(idx) }
+            }
+            TokenRows(t.tiles.mapIndexed { i, s -> if (i in chosen) "" else s }) { i ->
+                if (state.result != null || i in chosen) return@TokenRows
+                chosen.add(i)
+                // Проверяем, когда слов столько же, сколько в правильном ответе (лишние слова — ловушки).
+                if (chosen.size == d.answerTokens.size) done(SessionBuilder.orderCorrect(d, chosen.map { t.tiles[it] }))
+            }
+            if (state.result != null && state.result == false) {
+                Text(d.answer, fontSize = 20.sp, color = Palette.Good, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            }
+        }
+    }
+    if (state.result != null && d.explain.isNotBlank()) {
+        CardBox { Text("💡 ${d.explain}", fontSize = 16.sp) }
     }
 }
 

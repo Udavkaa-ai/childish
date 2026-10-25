@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import ru.sovushka.app.graph
 import ru.sovushka.app.voice.ListenException
+import ru.sovushka.core.GrammarBank
 import ru.sovushka.core.Srs
 import ru.sovushka.core.ai.Tutor
 import ru.sovushka.core.mesh.DiaryInsights
@@ -70,6 +71,8 @@ fun TutorScreen(vm: AppViewModel, lessonId: String?) {
                     if (lesson.grammar.isNotBlank()) append("Правило: ").append(lesson.grammar).append(' ')
                 }
                 append(DiaryInsights.tutorContext(d.diary, LocalDate.now().toString()))
+                val weak = d.grammar.filter { it.value.wrong > it.value.right }.keys.mapNotNull { GrammarBank.topic(it)?.title }
+                if (weak.isNotEmpty()) append(" Темы, где она чаще ошибается: ").append(weak.joinToString("; ")).append('.')
             }
             Tutor(it, prefs.olderName.ifBlank { "подружка" }, prefs.olderAge, words, ctx)
         }

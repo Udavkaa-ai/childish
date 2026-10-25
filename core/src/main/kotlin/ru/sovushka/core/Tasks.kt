@@ -21,6 +21,14 @@ sealed interface Task {
     /** Произносим слово в микрофон. */
     data class Say(override val word: Word) : Task
 
+    /**
+     * Грамматика: вставить слово, выбрать правильное предложение или собрать предложение по-русски.
+     * choices — варианты вперемешку (для gap/choose), tiles — слова вперемешку с лишними (для order).
+     */
+    data class Grammar(val drill: Drill, val choices: List<String>, val tiles: List<String>) : Task {
+        override val word: Word? get() = null
+    }
+
     /** Слушаем предложение — собираем его из слов. */
     data class Build(val sentence: Sentence, val tokens: List<String>) : Task {
         override val word: Word? get() = null
@@ -31,13 +39,30 @@ object SessionBuilder {
     const val LESSON_WORDS = 6
     const val REVIEW_WORDS = 10
 
-    /** Тренировка урока: сначала знакомство с новыми словами, затем упражнения вперемешку. */
+    const val LESSON_DRILLS = 8
+
+    fun grammarTask(d: Drill, random: Random): Task.Grammar = Task.Grammar(
+        d,
+        d.options.distinct().shuffled(random),
+        if (d.kind == Drill.ORDER) (d.answerTokens + d.extra).shuffled(random) else emptyList(),
+    )
+
+    /** Тренировка по грамматической теме: упражнения вперемешку. */
+    fun grammar(drills: List<Drill>, count: Int = 8, random: Random = Random.Default): List<Task> =
+        drills.filter { it.isValid() }.shuffled(random).take(count).map { grammarTask(it, random) }
+
+    /**
+     * Тренировка урока: знакомство с новыми словами, упражнения на слова, а затем грамматика:
+     * упражнения страницы и повторение пройденных тем (reviewDrills).
+     */
     fun lesson(
         words: List<Word>,
         sentences: List<Sentence>,
         allWords: List<Word>,
         canSpeak: Boolean,
         random: Random = Random.Default,
+        drills: List<Drill> = emptyList(),
+        reviewDrills: List<Drill> = emptyList(),
     ): List<Task> {
         if (words.isEmpty()) return emptyList()
         // Берём в первую очередь хуже всего выученные слова.
@@ -46,27 +71,36 @@ object SessionBuilder {
             .shuffled(random)
         val pool = (allWords + words).distinctBy { it.id }
         val intro = picked.filter { it.box == 0 }.map { Task.Intro(it) }
-        val drills = picked.flatMap { w ->
+        // Если у урока есть грамматика, на слова оставляем по два задания (правописание — всегда).
+        val perWord = if (drills.isNotEmpty() || reviewDrills.isNotEmpty()) 2 else 3
+        val wordTasks = picked.flatMap { w ->
             val kinds = mutableListOf(Kind.LISTEN, Kind.READ, Kind.SPELL)
             if (canSpeak) kinds += Kind.SAY
-            kinds.shuffled(random).take(3).let { if (Kind.SPELL in it) it else it.dropLast(1) + Kind.SPELL }
+            kinds.shuffled(random).take(perWord).let { if (Kind.SPELL in it) it else it.dropLast(1) + Kind.SPELL }
                 .map { make(it, w, pool, random) }
         }
         val builds = sentences.filter { tokenize(it.en).size in 2..9 }
             .shuffled(random).take(2)
             .map { Task.Build(it, tokenize(it.en).shuffled(random)) }
-        return intro + spread(drills.shuffled(random)) + builds
+        val grammar = grammar(drills, LESSON_DRILLS - minOf(3, reviewDrills.size), random) + grammar(reviewDrills, 3, random)
+        return intro + spread(wordTasks.shuffled(random)) + builds + grammar.shuffled(random)
     }
 
-    /** Повторение: по два упражнения на каждое слово, которому пора. */
-    fun review(due: List<Word>, allWords: List<Word>, canSpeak: Boolean, random: Random = Random.Default): List<Task> {
+    /** Повторение: по два упражнения на каждое слово, которому пора, и задания по темам, которые пора освежить. */
+    fun review(
+        due: List<Word>,
+        allWords: List<Word>,
+        canSpeak: Boolean,
+        random: Random = Random.Default,
+        drills: List<Drill> = emptyList(),
+    ): List<Task> {
         val picked = due.sortedBy { it.due }.take(REVIEW_WORDS)
-        val drills = picked.flatMap { w ->
+        val wordDrills = picked.flatMap { w ->
             val first = if (random.nextBoolean()) Kind.LISTEN else Kind.READ
             val second = if (canSpeak && random.nextInt(3) == 0) Kind.SAY else Kind.SPELL
             listOf(make(first, w, allWords, random), make(second, w, allWords, random))
         }
-        return spread(drills.shuffled(random))
+        return spread(wordDrills.shuffled(random)) + grammar(drills, 6, random)
     }
 
     private enum class Kind { LISTEN, READ, SPELL, SAY }
@@ -120,6 +154,15 @@ object SessionBuilder {
             out += rest.removeAt(idx)
         }
         return out
+    }
+
+    /** Проверка ответа в «order»: регистр, пунктуация и сокращения (it's = it is) не важны. */
+    fun orderCorrect(d: Drill, built: List<String>): Boolean {
+        fun norm(s: String) = TextMatch.normalize(
+            s.replace("n't", " not").replace("'m", " am").replace("'re", " are").replace("'ve", " have")
+                .replace(Regex("\\b(it|he|she|that|what|there)'s\\b", RegexOption.IGNORE_CASE), "$1 is"),
+        )
+        return norm(built.joinToString(" ")) == norm(d.answer)
     }
 
     /** Звёзды за тренировку по доле правильных ответов. */

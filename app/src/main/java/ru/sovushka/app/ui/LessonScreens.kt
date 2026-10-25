@@ -55,6 +55,7 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
 import ru.sovushka.app.graph
 import ru.sovushka.core.Builtin
+import ru.sovushka.core.GrammarBank
 import ru.sovushka.core.Lesson
 import ru.sovushka.core.Sentence
 import ru.sovushka.core.SpeechText
@@ -222,6 +223,8 @@ fun DraftScreen(vm: AppViewModel) {
                             note = c.note,
                             grammar = draft.grammar,
                             sentences = draft.sentences.map { Sentence(it.en, it.ru) },
+                            drills = draft.validDrills(),
+                            topics = draft.topics,
                             sourceText = c.sourceText,
                             photos = c.photos.map { it.path },
                         )
@@ -330,6 +333,17 @@ fun LessonScreen(vm: AppViewModel, id: String) {
                                 SoundButton({ g.speaker.speak(lesson.grammar) })
                             }
                             Text(lesson.grammar, fontSize = 16.sp)
+                        }
+                    }
+                }
+                if (lesson.drills.isNotEmpty() || lesson.topics.isNotEmpty()) item {
+                    CardBox {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("🧩 Упражнений на правила: ${lesson.drills.size}", fontWeight = FontWeight.SemiBold)
+                            lesson.topics.mapNotNull { GrammarBank.topic(it) }.forEach { tp ->
+                                Text("🔁 Повторим: ${tp.title}", fontSize = 15.sp, color = Palette.Blue,
+                                    modifier = Modifier.clickable { vm.go(Screen.Topic(tp.id)) })
+                            }
                         }
                     }
                 }

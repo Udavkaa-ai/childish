@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.sovushka.app.graph
 import ru.sovushka.app.today
+import ru.sovushka.core.GrammarBank
 import ru.sovushka.core.Srs
 import ru.sovushka.core.mesh.DiaryInsights
 import java.time.LocalDate
@@ -168,6 +169,8 @@ fun OlderHomeScreen(vm: AppViewModel) {
     val talking by g.speaker.speaking.collectAsState()
     val t = today()
     val due = data.dueWords(t).size
+    val dueTopics = data.dueTopics(t).size
+    val learnedTopics = data.grammar.count { it.value.box >= Srs.LEARNED_BOX }
     val learned = data.words.count { it.box >= Srs.LEARNED_BOX }
     val greeting = remember { greetingFor(prefs.olderName) }
     LaunchedEffect(Unit) { g.speaker.say(greeting) }
@@ -208,9 +211,19 @@ fun OlderHomeScreen(vm: AppViewModel) {
                 }
                 BigButton(
                     "🔁", "Повторение",
-                    subtitle = if (due > 0) "Пора повторить слов: $due" else "Все слова повторены — молодец!",
-                    brush = Palette.pinkish, enabled = due > 0,
+                    subtitle = when {
+                        due > 0 && dueTopics > 0 -> "Слов: $due · правил: $dueTopics"
+                        due > 0 -> "Пора повторить слов: $due"
+                        dueTopics > 0 -> "Пора повторить правил: $dueTopics"
+                        else -> "Всё повторено — молодец!"
+                    },
+                    brush = Palette.pinkish, enabled = due > 0 || dueTopics > 0,
                 ) { vm.go(Screen.Practice(null)) }
+                BigButton(
+                    "📘", "Правила",
+                    subtitle = "Темы 2–4 класса · выучено $learnedTopics из ${GrammarBank.topics.size}",
+                    brush = Palette.buttonSoft,
+                ) { vm.go(Screen.Grammar) }
                 BigButton("📚", "Мои уроки", subtitle = "Уроков: ${data.lessons.size} · выучено слов: $learned", brush = Palette.bluish) { vm.go(Screen.Lessons) }
                 BigButton("💬", "Поговорить с Никой", subtitle = "Спроси что угодно или скажи «проверь меня»", brush = Palette.buttonSoft) { vm.go(Screen.Tutor()) }
                 BigButton("🎒", "Готовые темы", subtitle = "Животные, еда, цвета и другие", brush = Palette.bluish) { vm.go(Screen.Packs) }

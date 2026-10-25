@@ -37,6 +37,10 @@ data class Lesson(
     val photos: List<String> = emptyList(),
     val bestStars: Int = 0,
     val runs: Int = 0,
+    /** Упражнения на грамматику и построение предложений по этой странице. */
+    val drills: List<Drill> = emptyList(),
+    /** Пройденные темы (id из GrammarBank), к которым относится страница. */
+    val topics: List<String> = emptyList(),
 )
 
 @Serializable
@@ -69,7 +73,18 @@ data class AppData(
     val younger: KidStats = KidStats(),
     /** Последний снимок школьного дневника МЭШ. */
     val diary: DiarySnapshot? = null,
+    /** Успехи по грамматическим темам (id темы → интервальное повторение). */
+    val grammar: Map<String, TopicStats> = emptyMap(),
+    /** Дополнительные упражнения по темам от нейросети («Ещё задания от Ники»). */
+    val extraDrills: Map<String, List<Drill>> = emptyMap(),
 ) {
+    /** Все упражнения темы: встроенные и придуманные нейросетью. */
+    fun drillsOf(topicId: String): List<Drill> =
+        GrammarBank.topic(topicId)?.drills.orEmpty() + extraDrills[topicId].orEmpty()
+
+    /** Темы, которые пора повторить. */
+    fun dueTopics(today: Long): List<String> = grammar.filter { (_, s) -> s.box > 0 && s.due <= today }.keys.toList()
+
     fun wordsOf(lessonId: String): List<Word> = words.filter { it.lessonId == lessonId }
     fun dueWords(today: Long): List<Word> = words.filter { Srs.isDue(it, today) }
 }

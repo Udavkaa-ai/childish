@@ -29,8 +29,11 @@ sealed interface Screen {
     data object Lessons : Screen
     data object Packs : Screen
     data class Lesson(val id: String) : Screen
-    /** lessonId = null — повторение слов, которым пора. */
-    data class Practice(val lessonId: String?, val run: Long = System.nanoTime()) : Screen
+    /** lessonId = null и topicId = null — повторение; topicId — тренировка по грамматической теме. */
+    /** fresh — начать с заданий, которые нейросеть только что придумала по теме. */
+    data class Practice(val lessonId: String?, val run: Long = System.nanoTime(), val topicId: String? = null, val fresh: Int = 0) : Screen
+    data object Grammar : Screen
+    data class Topic(val id: String) : Screen
     data class Tutor(val lessonId: String? = null) : Screen
     data object Diary : Screen
     data object MeshLogin : Screen
@@ -129,6 +132,8 @@ fun AppRoot(mic: MicGate) {
             is Screen.Practice -> PracticeScreen(vm, s)
             is Screen.Tutor -> TutorScreen(vm, s.lessonId)
             Screen.Diary -> DiaryScreen(vm)
+            Screen.Grammar -> GrammarScreen(vm)
+            is Screen.Topic -> TopicScreen(vm, s.id)
             Screen.MeshLogin -> MeshLoginScreen(vm)
             Screen.YoungerHome -> YoungerHomeScreen(vm)
             is Screen.YoungerPack -> YoungerPackScreen(vm, s.packId)
