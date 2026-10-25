@@ -46,6 +46,8 @@ data class Prefs(
     val talk: String = TALK_FULL,
     /** Ника объёмная (3D, как на иконке) или рисованная. */
     val nika3d: Boolean = true,
+    /** Видео-заставку уже показывали (дальше — только по кнопке ▶). */
+    val introSeen: Boolean = false,
     /** Меняется при смене фото детей — чтобы экраны перечитали аватарки. */
     val avatarStamp: Long = 0,
 ) {
@@ -104,6 +106,7 @@ class Settings(context: Context) {
             avatarStamp = sp.getLong("avatarStamp", d.avatarStamp),
             talk = sp.getString("talk", d.talk)!!,
             nika3d = sp.getBoolean("nika3d", d.nika3d),
+            introSeen = sp.getBoolean("introSeen", d.introSeen),
         )
     }
 
@@ -127,6 +130,7 @@ class Settings(context: Context) {
             .putLong("avatarStamp", p.avatarStamp)
             .putString("talk", p.talk)
             .putBoolean("nika3d", p.nika3d)
+            .putBoolean("introSeen", p.introSeen)
             .apply()
         _prefs.value = p
     }

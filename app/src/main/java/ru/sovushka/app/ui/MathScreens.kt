@@ -56,6 +56,7 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.sovushka.app.AppGraph
+import ru.sovushka.app.data.Prefs
 import ru.sovushka.app.graph
 import ru.sovushka.app.voice.Talk
 import ru.sovushka.app.today
@@ -82,7 +83,9 @@ fun SubjectChoiceScreen(vm: AppViewModel, older: Boolean) {
     val talking by g.speaker.speaking.collectAsState()
     val name = if (older) prefs.olderName else prefs.youngerName
     val hello = "$name, чем займёмся? Английским или математикой?"
-    LaunchedEffect(Unit) { g.speaker.say(hello) }
+    // Заставку с Никой сами показываем один раз (и не в режиме «молчу» у старшей), дальше — по кнопке ▶.
+    val autoIntro = remember { !g.settings.value.introSeen && (!older || g.settings.value.talk != Prefs.TALK_SILENT) }
+    LaunchedEffect(Unit) { if (!autoIntro) g.speaker.say(hello) }
     GradientScreen {
         Column(Modifier.fillMaxSize()) {
             TopBar(name.ifBlank { "Привет!" }, onBack = { vm.back() }) { KidAvatar(older, "👧", 40.dp, Modifier.padding(end = 10.dp)) }
@@ -90,7 +93,8 @@ fun SubjectChoiceScreen(vm: AppViewModel, older: Boolean) {
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                NikaSays(hello, if (talking) NikaMood.TALK else NikaMood.WAVE, talking, nikaHeight = 130.dp)
+                NikaIntroVideo(autoIntro, onStart = { if (!g.settings.value.introSeen) g.settings.update { it.copy(introSeen = true) } })
+                NikaSays(hello, if (talking) NikaMood.TALK else NikaMood.WAVE, talking, nikaHeight = 110.dp)
                 SubjectCard(
                     "English", if (older) "Учебник, правила, комиксы, слова" else "Картинки и слова на слух",
                     Palette.pinkish, NikaOutfit.CASUAL, appear = 0,
