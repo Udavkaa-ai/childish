@@ -91,6 +91,14 @@ class GrammarTest {
     }
 
     @Test
+    fun haveGotIsOptionalInOrderDrills() {
+        val d = Drill(Drill.ORDER, prompt = "У меня две собаки и три кошки.", answer = "I have got two dogs and three cats", extra = listOf("dog", "cat"))
+        assertTrue(SessionBuilder.orderCorrect(d, "I have two dogs and three cats".split(" ")))
+        assertTrue(SessionBuilder.orderCorrect(d, "I've got two dogs and three cats".split(" ")))
+        assertFalse(SessionBuilder.orderCorrect(d, "I have two dog and three cats".split(" ")))
+    }
+
+    @Test
     fun badDrillIsHiddenEverywhere() {
         val bank = GrammarBank.topic("to_be")!!.drills.first()
         val mine = Drill(Drill.ORDER, prompt = "Его сестра делает песочный замок.", answer = "Nell is making a sandcastle", topic = "to_be")

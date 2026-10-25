@@ -158,10 +158,11 @@ object SessionBuilder {
 
     /** Проверка ответа в «order»: регистр, пунктуация и сокращения (it's = it is) не важны. */
     fun orderCorrect(d: Drill, built: List<String>): Boolean {
+        // «I have two dogs» — такой же верный ответ, как «I have got two dogs».
         fun norm(s: String) = TextMatch.normalize(
             s.replace("n't", " not").replace("'m", " am").replace("'re", " are").replace("'ve", " have")
                 .replace(Regex("\\b(it|he|she|that|what|there)'s\\b", RegexOption.IGNORE_CASE), "$1 is"),
-        )
+        ).replace(Regex("\\b(have|has) got\\b"), "$1")
         return norm(built.joinToString(" ")) == norm(d.answer)
     }
 

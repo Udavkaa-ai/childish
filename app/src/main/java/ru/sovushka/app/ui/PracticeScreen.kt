@@ -527,8 +527,15 @@ private fun GrammarTask(g: AppGraph, state: PracticeState, t: Task.Grammar) {
             TokenRows(t.tiles.mapIndexed { i, s -> if (i in chosen) "" else s }) { i ->
                 if (state.result != null || i in chosen) return@TokenRows
                 chosen.add(i)
-                // Проверяем, когда слов столько же, сколько в правильном ответе (лишние слова — ловушки).
-                if (chosen.size == d.answerTokens.size) done(SessionBuilder.orderCorrect(d, chosen.map { t.tiles[it] }))
+                // Готово, если собран верный вариант (в том числе короче: «I have» вместо «I have got»),
+                // или если слов уже столько же, сколько в ответе (лишние слова — ловушки).
+                val words = chosen.map { t.tiles[it] }
+                if (SessionBuilder.orderCorrect(d, words)) done(true)
+                else if (chosen.size == d.answerTokens.size) done(false)
+            }
+            if (state.result == null && chosen.size >= 2) {
+                // Если ребёнок считает, что собрал всё, — можно проверить и раньше.
+                PillButton("✓ Проверить", Modifier.fillMaxWidth()) { done(SessionBuilder.orderCorrect(d, chosen.map { t.tiles[it] })) }
             }
             if (state.result != null && state.result == false) {
                 Text(d.answer, fontSize = 20.sp, color = Palette.Good, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)

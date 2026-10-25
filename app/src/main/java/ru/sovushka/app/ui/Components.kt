@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -107,7 +108,11 @@ fun TopBar(title: String, onBack: (() -> Unit)?, trailing: @Composable () -> Uni
             ) { AppIcon(AppIcons.BACK, size = 30.dp) }
             Spacer(Modifier.width(10.dp))
         }
-        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge.let { if (title.length > 20) it.copy(fontSize = 18.sp) else it },
+            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+        )
         if (LocalTalkToggle.current) TalkToggle()
         trailing()
     }
@@ -125,10 +130,11 @@ fun TalkToggle() {
     val ctx = LocalContext.current
     val g = ctx.graph
     val prefs by g.settings.prefs.collectAsState()
-    val (icon, label) = when (prefs.talk) {
-        Prefs.TALK_TASKS -> "🔉" to "меньше слов"
-        Prefs.TALK_SILENT -> "🔇" to "молчу"
-        else -> "🔊" to ""
+    // Только значок — чтобы не теснить заголовок; что значит режим, подсказывает всплывающая надпись.
+    val icon = when (prefs.talk) {
+        Prefs.TALK_TASKS -> "🔉"
+        Prefs.TALK_SILENT -> "🔇"
+        else -> "🔊"
     }
     Row(
         Modifier.padding(end = 6.dp).glass(RoundedCornerShape(50), Color.White.copy(alpha = 0.7f), rim = 2.dp)
@@ -147,11 +153,10 @@ fun TalkToggle() {
                 }
                 android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
             }
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 9.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(icon, fontSize = 20.sp)
-        if (label.isNotEmpty()) Text(" $label", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Palette.Ink)
     }
 }
 
