@@ -273,7 +273,7 @@ fun MathTopicScreen(vm: AppViewModel, id: String) {
                 }
             }
             Column(Modifier.navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                BigButton("▶️", "Решать", subtitle = "10 новых задач по теме", brush = MathPalette.primary) {
+                BigButton("▶️", "Решать", subtitle = "8 новых задач по теме", brush = MathPalette.primary) {
                     vm.go(Screen.MathPractice(topicId = id))
                 }
             }
@@ -283,7 +283,7 @@ fun MathTopicScreen(vm: AppViewModel, id: String) {
 
 /* ======================= Тренировка ======================= */
 
-/** Ход тренировки: очередь задач, вторая попытка, ошибочные задачи повторяются в конце. */
+/** Ход тренировки: очередь задач, вторая попытка, нерешённые задачи повторяются в конце. */
 class MathPracticeState(problems: List<MathProblem>) {
     val queue = mutableStateListOf<MathProblem>().apply { addAll(problems) }
     var index by mutableIntStateOf(0)
@@ -314,7 +314,8 @@ class MathPracticeState(problems: List<MathProblem>) {
         if (firstTry) correct++
         log += t to firstTry
         if (ok) burst++ else shakes++
-        if (!firstTry && requeued.add(t.key)) queue.add(t)
+        // В конце ещё раз — только задачи, которые так и не решились (со второй попытки — уже не повторяем).
+        if (!ok && requeued.add(t.key)) queue.add(t)
     }
 
     fun next() {
@@ -350,7 +351,7 @@ fun MathPracticeScreen(vm: AppViewModel, screen: Screen.MathPractice) {
     val state = remember(screen) {
         val d = g.store.value
         val problems = when {
-            screen.topicId != null -> MathSession.topic(screen.topicId, 10)
+            screen.topicId != null -> MathSession.topic(screen.topicId, 8)
             screen.lessonId != null -> {
                 val l = d.mathLessons.firstOrNull { it.id == screen.lessonId }
                 MathSession.lesson(l?.problems.orEmpty().filter { it.key !in d.badMath }, l?.topics.orEmpty())

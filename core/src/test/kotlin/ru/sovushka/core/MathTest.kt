@@ -134,8 +134,10 @@ class MathTest {
         assertEquals(10, MathSession.topic("mult_table", 10, Random(3)).size)
         val lessonProblems = listOf(p("2 + 2 = □", "4"), p("3 + 3 = □", "6"))
         val s = MathSession.lesson(lessonProblems, listOf("equations", "speed"), Random(4))
-        assertEquals(6, s.size)
-        assertTrue(MathSession.review(listOf("div_rem", "speed"), Random(5)).size in 4..6)
+        assertEquals(5, s.size)
+        assertEquals(8, MathSession.lesson(List(12) { p("$it + 1 = □", "${it + 1}") }, emptyList(), Random(6)).size)
+        assertEquals(4, MathSession.review(listOf("div_rem", "speed"), Random(5)).size)
+        assertEquals(10, MathSession.review(MathBank.topics.map { it.id }, Random(7)).size)
 
         val data = AppData(mathLessons = listOf(MathLesson("m1", "t", 0, problems = lessonProblems)))
         val clean = data.withoutMath(lessonProblems[0])

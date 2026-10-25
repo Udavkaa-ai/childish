@@ -490,13 +490,13 @@ object MathSession {
     /** Тренировка темы. */
     fun topic(id: String, n: Int = 10, r: Random = Random.Default): List<MathProblem> = MathBank.topic(id)?.problems(n, r).orEmpty()
 
-    /** Урок по фото: задачи со страницы и немного повторения связанных тем. */
+    /** Урок по фото: до 8 задач со страницы (каждый раз другие) и 3 на повторение связанных тем. */
     fun lesson(problems: List<MathProblem>, topics: List<String>, r: Random = Random.Default): List<MathProblem> {
-        val review = topics.flatMap { topic(it, 2, r) }.shuffled(r).take(6)
-        return problems.shuffled(r) + review
+        val review = topics.flatMap { topic(it, 2, r) }.shuffled(r).take(3)
+        return problems.shuffled(r).take(8) + review
     }
 
     /** Повторение тем, которые пора освежить. */
     fun review(dueTopics: List<String>, r: Random = Random.Default): List<MathProblem> =
-        dueTopics.shuffled(r).take(6).flatMap { topic(it, 3, r) }.shuffled(r).take(15)
+        dueTopics.shuffled(r).take(5).flatMap { topic(it, 2, r) }.shuffled(r).take(10)
 }
