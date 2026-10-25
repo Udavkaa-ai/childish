@@ -42,6 +42,8 @@ sealed interface Screen {
     data class Practice(val lessonId: String?, val run: Long = System.nanoTime(), val topicId: String? = null, val fresh: Int = 0) : Screen
     data object Grammar : Screen
     data class Topic(val id: String) : Screen
+    data object Comics : Screen
+    data class Comic(val id: String) : Screen
     data class Tutor(val lessonId: String? = null) : Screen
     data object Diary : Screen
     data object MeshLogin : Screen
@@ -160,6 +162,8 @@ private fun ScreenContent(vm: AppViewModel, s: Screen) {
             Screen.Diary -> DiaryScreen(vm)
             Screen.Grammar -> GrammarScreen(vm)
             is Screen.Topic -> TopicScreen(vm, s.id)
+            Screen.Comics -> ComicsScreen(vm)
+            is Screen.Comic -> ComicScreen(vm, s.id)
             Screen.MeshLogin -> MeshLoginScreen(vm)
             Screen.YoungerHome -> YoungerHomeScreen(vm)
             is Screen.YoungerPack -> YoungerPackScreen(vm, s.packId)

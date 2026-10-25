@@ -1,8 +1,6 @@
 package ru.sovushka.app.ui
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,16 +30,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import ru.sovushka.app.R
 import ru.sovushka.app.graph
 import ru.sovushka.app.today
+import ru.sovushka.core.ComicBook
 import ru.sovushka.core.GrammarBank
 import ru.sovushka.core.SpeechText
 import ru.sovushka.core.Srs
@@ -142,13 +138,7 @@ fun TopicScreen(vm: AppViewModel, id: String) {
                         }
                     }
                 }
-                TOPIC_COMICS[id]?.let { res ->
-                    Image(
-                        painterResource(res), "Комикс с Никой",
-                        Modifier.fillMaxWidth().aspectRatio(1f).glass(RoundedCornerShape(22.dp), Color.White.copy(alpha = 0.8f), rim = 3.dp).padding(4.dp)
-                            .clip(RoundedCornerShape(18.dp)),
-                    )
-                }
+                ComicBook.forTopic(id)?.let { c -> ComicCard(c, read = c.id in data.comicsRead, wide = true) { vm.go(Screen.Comic(c.id)) } }
                 message?.let { Text(it, color = Palette.Muted) }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
@@ -189,8 +179,3 @@ fun TopicScreen(vm: AppViewModel, id: String) {
         }
     }
 }
-
-/** Комиксы с Никой к темам (нарисованы в OpenArt по референсу персонажа). */
-private val TOPIC_COMICS = mapOf(
-    "this_these" to R.drawable.comic_this_these,
-)

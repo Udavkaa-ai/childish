@@ -79,6 +79,8 @@ data class AppData(
     val extraDrills: Map<String, List<Drill>> = emptyMap(),
     /** Упражнения, в которых ребёнок нашёл ошибку («🚩 В задании ошибка») — больше не показываем. */
     val badDrills: Set<String> = emptySet(),
+    /** Прочитанные комиксы с Никой (id). */
+    val comicsRead: Set<String> = emptySet(),
 ) {
     /** Все упражнения темы: встроенные и придуманные нейросетью. */
     fun drillsOf(topicId: String): List<Drill> =

@@ -104,4 +104,16 @@ class GrammarTest {
         assertEquals(data.drillsOf("to_be").size - 2, clean.drillsOf("to_be").size)
         assertTrue(LessonGenerator.systemPrompt(10).contains("слово в слово"))
     }
+
+    @Test
+    fun comicsAreLinkedToTopics() {
+        assertEquals(11, ComicBook.comics.size)
+        assertEquals(ComicBook.comics.size, ComicBook.comics.map { it.id }.toSet().size)
+        ComicBook.comics.forEach { c ->
+            assertNotNull(GrammarBank.topic(c.topic), c.id)
+            assertTrue(c.lines.size in 4..6, c.id)
+            c.lines.forEach { assertTrue(it.en.isNotBlank() && it.ru.isNotBlank(), c.id) }
+        }
+        assertEquals("pet", ComicBook.forTopic("have_got")?.id)
+    }
 }

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.sovushka.app.graph
 import ru.sovushka.app.today
+import ru.sovushka.core.ComicBook
 import ru.sovushka.core.GrammarBank
 import ru.sovushka.core.Srs
 import ru.sovushka.core.mesh.DiaryInsights
@@ -226,10 +227,16 @@ fun OlderHomeScreen(vm: AppViewModel) {
                     subtitle = "Темы 2–4 класса · выучено $learnedTopics из ${GrammarBank.topics.size}",
                     brush = Palette.buttonSoft, appear = 2,
                 ) { vm.go(Screen.Grammar) }
-                BigButton("📚", "Мои уроки", subtitle = "Уроков: ${data.lessons.size} · выучено слов: $learned", brush = Palette.bluish, appear = 3) { vm.go(Screen.Lessons) }
-                BigButton("💬", "Поговорить с Никой", subtitle = "Спроси что угодно или скажи «проверь меня»", brush = Palette.buttonSoft, appear = 4) { vm.go(Screen.Tutor()) }
-                BigButton("🎒", "Готовые темы", subtitle = "Животные, еда, цвета и другие", brush = Palette.bluish, appear = 5) { vm.go(Screen.Packs) }
-                BigButton("🏫", "Дневник МЭШ", subtitle = "Расписание, оценки и домашка", brush = Palette.pinkish, appear = 6) { vm.go(Screen.Diary) }
+                val unread = ComicBook.comics.count { it.id !in data.comicsRead }
+                BigButton(
+                    "🖼", "Комиксы с Никой",
+                    subtitle = if (unread > 0) "Новых: $unread · читаем вместе с Никой" else "Все прочитаны — перечитай любимый!",
+                    brush = Palette.pinkish, appear = 3,
+                ) { vm.go(Screen.Comics) }
+                BigButton("📚", "Мои уроки", subtitle = "Уроков: ${data.lessons.size} · выучено слов: $learned", brush = Palette.bluish, appear = 4) { vm.go(Screen.Lessons) }
+                BigButton("💬", "Поговорить с Никой", subtitle = "Спроси что угодно или скажи «проверь меня»", brush = Palette.buttonSoft, appear = 5) { vm.go(Screen.Tutor()) }
+                BigButton("🎒", "Готовые темы", subtitle = "Животные, еда, цвета и другие", brush = Palette.bluish, appear = 6) { vm.go(Screen.Packs) }
+                BigButton("🏫", "Дневник МЭШ", subtitle = "Расписание, оценки и домашка", brush = Palette.pinkish, appear = 7) { vm.go(Screen.Diary) }
                 Spacer(Modifier.height(12.dp))
             }
         }
