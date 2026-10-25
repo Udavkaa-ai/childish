@@ -25,6 +25,8 @@ import kotlinx.coroutines.launch
 import ru.sovushka.app.graph
 import ru.sovushka.core.ai.GeneratedLesson
 import ru.sovushka.core.ai.LessonGenerator
+import ru.sovushka.core.ai.GeneratedMathLesson
+import ru.sovushka.core.ai.MathLessonGenerator
 import java.io.File
 
 /** Экраны приложения. Навигация — простой стек в ViewModel. */
@@ -44,7 +46,7 @@ sealed interface Screen {
     data class Topic(val id: String) : Screen
     data object Comics : Screen
     data class Comic(val id: String) : Screen
-    data class Tutor(val lessonId: String? = null) : Screen
+    data class Tutor(val lessonId: String? = null, val math: Boolean = false) : Screen
     data object Diary : Screen
     data object MeshLogin : Screen
     data object YoungerHome : Screen
@@ -52,7 +54,28 @@ sealed interface Screen {
     data class YoungerGame(val packId: String, val find: Boolean, val run: Long = System.nanoTime()) : Screen
     data class ParentGate(val next: Screen) : Screen
     data object Settings : Screen
+
+    /** Выбор предмета после профиля: английский или математика. */
+    data class SubjectChoice(val older: Boolean) : Screen
+
+    // Математика (строгий стиль, Ника в очках).
+    data object MathHome : Screen, MathScreen
+    data object MathTopics : Screen, MathScreen
+    data class MathTopicPage(val id: String) : Screen, MathScreen
+    /** lessonId — урок по фото, topicId — тема программы, оба null — повторение. */
+    data class MathPractice(val lessonId: String? = null, val topicId: String? = null, val run: Long = System.nanoTime()) : Screen, MathScreen
+    data object MathCapture : Screen, MathScreen
+    data object MathDraft : Screen, MathScreen
+    data object MathLessons : Screen, MathScreen
+    data class MathLessonPage(val id: String) : Screen, MathScreen
+    data object YoungerMath : Screen, MathScreen
+    data class YoungerMathGame(val kind: String, val run: Long = System.nanoTime()) : Screen, MathScreen
 }
+
+/** Отметка экранов математики. */
+interface MathScreen
+
+val Screen.isMath: Boolean get() = this is MathScreen || (this is Screen.Tutor && math)
 
 /** Выход к микрофону: разрешение запрашивает Activity. */
 interface MicGate {
@@ -68,13 +91,14 @@ class CaptureState {
     var status by mutableStateOf<String?>(null)
     var error by mutableStateOf<String?>(null)
     var draft by mutableStateOf<GeneratedLesson?>(null)
+    var mathDraft by mutableStateOf<GeneratedMathLesson?>(null)
     var sourceText by mutableStateOf("")
     var job: Job? = null
     val busy: Boolean get() = job?.isActive == true
 
     fun reset() {
         job?.cancel()
-        photos.clear(); note = ""; status = null; error = null; draft = null; sourceText = ""
+        photos.clear(); note = ""; status = null; error = null; draft = null; mathDraft = null; sourceText = ""
     }
 }
 
@@ -82,18 +106,50 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val graph = app.graph
     val stack = mutableStateListOf<Screen>(if (graph.settings.value.setupDone) Screen.Profiles else Screen.Setup)
     val capture = CaptureState()
+    val mathCapture = CaptureState()
 
     val current: Screen get() = stack.last()
 
-    fun go(s: Screen) { graph.speaker.stop(); stack.add(s) }
-    fun replace(s: Screen) { graph.speaker.stop(); stack[stack.lastIndex] = s }
+    /** Голос и озвучка формул — по предмету открытого экрана. */
+    private fun sync() { graph.speaker.mathMode = current.isMath }
+
+    fun go(s: Screen) { graph.speaker.stop(); stack.add(s); sync() }
+    fun replace(s: Screen) { graph.speaker.stop(); stack[stack.lastIndex] = s; sync() }
     fun back(): Boolean {
         graph.speaker.stop()
         if (stack.size <= 1) return false
         stack.removeAt(stack.lastIndex)
+        sync()
         return true
     }
-    fun home(s: Screen) { graph.speaker.stop(); stack.clear(); stack.add(s) }
+    fun home(s: Screen) { graph.speaker.stop(); stack.clear(); stack.add(s); sync() }
+
+    /** Распознать фото страницы учебника математики и попросить нейросеть собрать урок. */
+    fun generateMathLesson() {
+        val c = mathCapture
+        if (c.busy || c.photos.isEmpty()) return
+        val llm = graph.llm()
+        c.error = null
+        c.job = viewModelScope.launch {
+            try {
+                c.status = "Читаю страницу…"
+                val text = c.photos.map { graph.pages.recognize(it) }.joinToString("\n\n")
+                c.sourceText = text
+                if (llm == null) {
+                    c.error = "Нейросеть не подключена. Попроси родителей открыть настройки ⚙️ — а пока потренируйся по темам программы."
+                    return@launch
+                }
+                c.status = "Ника разбирает задачи…"
+                c.mathDraft = MathLessonGenerator(llm).fromPage(text, c.note, graph.settings.value.olderAge)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                c.error = e.message ?: e.toString()
+            } finally {
+                c.status = null
+            }
+        }
+    }
 
     /** Распознать фото и попросить нейросеть собрать урок. Работает, даже если уйти с экрана. */
     fun generateLesson() {
@@ -142,7 +198,13 @@ fun AppRoot(mic: MicGate) {
                     (fadeOut(tween(160)) + slideOutHorizontally(tween(260)) { w -> -dir * w / 10 })
             },
             label = "screens",
-        ) { s -> ScreenContent(vm, s) }
+        ) { s ->
+            // У математики свой стиль: тетрадь в клетку, строгие кнопки и Ника в очках.
+            CompositionLocalProvider(
+                LocalMathStyle provides s.isMath,
+                LocalNikaOutfit provides if (s.isMath) NikaOutfit.STRICT else NikaOutfit.CASUAL,
+            ) { ScreenContent(vm, s) }
+        }
     }
 }
 
@@ -158,7 +220,7 @@ private fun ScreenContent(vm: AppViewModel, s: Screen) {
             Screen.Packs -> PacksScreen(vm)
             is Screen.Lesson -> LessonScreen(vm, s.id)
             is Screen.Practice -> PracticeScreen(vm, s)
-            is Screen.Tutor -> TutorScreen(vm, s.lessonId)
+            is Screen.Tutor -> TutorScreen(vm, s.lessonId, s.math)
             Screen.Diary -> DiaryScreen(vm)
             Screen.Grammar -> GrammarScreen(vm)
             is Screen.Topic -> TopicScreen(vm, s.id)
@@ -170,5 +232,16 @@ private fun ScreenContent(vm: AppViewModel, s: Screen) {
             is Screen.YoungerGame -> if (s.find) FindGameScreen(vm, s) else RepeatGameScreen(vm, s)
             is Screen.ParentGate -> ParentGateScreen(vm, s.next)
             Screen.Settings -> SettingsScreen(vm)
+            is Screen.SubjectChoice -> SubjectChoiceScreen(vm, s.older)
+            Screen.MathHome -> MathHomeScreen(vm)
+            Screen.MathTopics -> MathTopicsScreen(vm)
+            is Screen.MathTopicPage -> MathTopicScreen(vm, s.id)
+            is Screen.MathPractice -> MathPracticeScreen(vm, s)
+            Screen.MathCapture -> MathCaptureScreen(vm)
+            Screen.MathDraft -> MathDraftScreen(vm)
+            Screen.MathLessons -> MathLessonsScreen(vm)
+            is Screen.MathLessonPage -> MathLessonScreen(vm, s.id)
+            Screen.YoungerMath -> YoungerMathScreen(vm)
+            is Screen.YoungerMathGame -> YoungerMathGameScreen(vm, s)
     }
 }

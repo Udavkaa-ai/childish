@@ -100,7 +100,7 @@ fun YoungerHomeScreen(vm: AppViewModel) {
 }
 
 @Composable
-private fun BigTile(emoji: String, brush: Brush, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun BigTile(emoji: String, brush: Brush, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val spec = iconFor(emoji)
     GlassButton(onClick, modifier, brush = brush, shape = RoundedCornerShape(28.dp), depth = 7.dp,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp)) {
@@ -135,7 +135,7 @@ fun YoungerPackScreen(vm: AppViewModel, packId: String) {
     }
 }
 
-private suspend fun rewardYounger(g: AppGraph, stars: Int) {
+internal suspend fun rewardYounger(g: AppGraph, stars: Int) {
     g.store.update { it.copy(younger = it.younger.addSession(today(), stars)) }
 }
 

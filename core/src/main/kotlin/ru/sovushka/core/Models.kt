@@ -1,6 +1,8 @@
 package ru.sovushka.core
 
 import kotlinx.serialization.Serializable
+import ru.sovushka.core.math.MathExample
+import ru.sovushka.core.math.MathProblem
 import ru.sovushka.core.mesh.DiarySnapshot
 
 /** Слово из урока старшей дочки. Хранит и содержимое, и состояние интервального повторения. */
@@ -64,6 +66,23 @@ data class KidStats(
     fun visibleStreak(today: Long): Int = if (lastDay >= today - 1) streak else 0
 }
 
+/** Урок математики по странице учебника: правило, разобранные примеры, задачи и связанные темы программы. */
+@Serializable
+data class MathLesson(
+    val id: String,
+    val title: String,
+    val createdAt: Long,
+    val note: String = "",
+    val rule: String = "",
+    val examples: List<MathExample> = emptyList(),
+    val problems: List<MathProblem> = emptyList(),
+    val topics: List<String> = emptyList(),
+    val sourceText: String = "",
+    val photos: List<String> = emptyList(),
+    val bestStars: Int = 0,
+    val runs: Int = 0,
+)
+
 @Serializable
 data class AppData(
     val version: Int = 1,
@@ -81,6 +100,10 @@ data class AppData(
     val badDrills: Set<String> = emptySet(),
     /** Прочитанные комиксы с Никой (id). */
     val comicsRead: Set<String> = emptySet(),
+    /** Математика: уроки по фото, успехи по темам программы и задачи, в которых нашли ошибку. */
+    val mathLessons: List<MathLesson> = emptyList(),
+    val mathTopics: Map<String, TopicStats> = emptyMap(),
+    val badMath: Set<String> = emptySet(),
 ) {
     /** Все упражнения темы: встроенные и придуманные нейросетью. */
     fun drillsOf(topicId: String): List<Drill> =
@@ -95,6 +118,15 @@ data class AppData(
 
     /** Темы, которые пора повторить. */
     fun dueTopics(today: Long): List<String> = grammar.filter { (_, s) -> s.box > 0 && s.due <= today }.keys.toList()
+
+    /** Темы математики, которые пора повторить. */
+    fun dueMathTopics(today: Long): List<String> = mathTopics.filter { (_, s) -> s.box > 0 && s.due <= today }.keys.toList()
+
+    /** Убрать задачу с ошибкой из уроков и больше не показывать. */
+    fun withoutMath(p: MathProblem): AppData = copy(
+        mathLessons = mathLessons.map { l -> if (l.problems.any { it.key == p.key }) l.copy(problems = l.problems.filter { it.key != p.key }) else l },
+        badMath = badMath + p.key,
+    )
 
     fun wordsOf(lessonId: String): List<Word> = words.filter { it.lessonId == lessonId }
     fun dueWords(today: Long): List<Word> = words.filter { Srs.isDue(it, today) }

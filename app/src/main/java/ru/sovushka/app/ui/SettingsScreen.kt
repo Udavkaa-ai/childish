@@ -53,6 +53,7 @@ import ru.sovushka.core.SpeechText
 import ru.sovushka.core.ai.ChatMessage
 import ru.sovushka.core.ai.YandexSpeech
 
+private const val MATH_SAMPLE = "Привет! Сегодня решаем примеры. 84 : 4 = □. Правильно, двадцать один! А теперь задача: 3/4 от 20 — это пятнадцать."
 private const val MIXED_SAMPLE = "Привет! Меня зовут Ника. Hello! My name is Nika. I like apples and bananas. Давай учить английский!"
 
 @Composable
@@ -195,7 +196,7 @@ fun SettingsScreen(vm: AppViewModel) {
                         YandexSpeech.GIRL_VOICES.forEach { v ->
                             Radio(v.title, p.yaVoice == v.name && p.yaRole == v.role) {
                                 set { it.copy(yaVoice = v.name, yaRole = v.role, yaVoiceModel = v.model) }
-                                g.speaker.speak(MIXED_SAMPLE)
+                                g.speaker.speak(MIXED_SAMPLE, math = false)
                             }
                         }
                         Text("Скорость речи: ${"%.2f".format(p.yaSpeed)}")
@@ -203,7 +204,17 @@ fun SettingsScreen(vm: AppViewModel) {
                         Text("Высота голоса: ${Math.round(p.yaPitch)}")
                         Slider(p.yaPitch, { v -> set { it.copy(yaPitch = v) } }, valueRange = -300f..300f)
                         yandexError?.let { Text("⚠️ Яндекс не ответил, говорит голос телефона: $it", color = Palette.Bad, fontSize = 14.sp) }
-                        PillButton("🎧 Послушать вместе", brush = Palette.button) { g.speaker.speak(MIXED_SAMPLE) }
+                        PillButton("🎧 Послушать вместе", brush = Palette.button) { g.speaker.speak(MIXED_SAMPLE, math = false) }
+                        Text("Голос для математики (там нет английского, поэтому можно живые голоса LiveTTS):")
+                        YandexSpeech.MATH_VOICES.forEach { v ->
+                            Radio(v.title, p.mathVoice == v.name && p.mathRole == v.role) {
+                                set { it.copy(mathVoice = v.name, mathRole = v.role, mathVoiceModel = v.model) }
+                                g.speaker.speak(MATH_SAMPLE, math = true)
+                            }
+                        }
+                        Text("Скорость голоса для математики: ${"%.2f".format(p.mathSpeed)}")
+                        Slider(p.mathSpeed, { v -> set { it.copy(mathSpeed = v) } }, valueRange = 0.7f..1.4f)
+                        PillButton("🎧 Послушать математику", brush = MathPalette.primary) { g.speaker.speak(MATH_SAMPLE, math = true) }
                     }
                     if (p.voice == Prefs.VOICE_ANDROID) {
                         val engines = remember { g.speaker.engines() }

@@ -41,6 +41,18 @@ class YandexSpeech(
             Voice("jane", "Джейн — радостная", "good"),
         )
 
+        /**
+         * Голоса для математики: там нет английского, поэтому можно живые голоса LiveTTS
+         * (они звучат естественнее всего, но английские слова не читают).
+         */
+        val MATH_VOICES = listOf(
+            Voice("sofia", "София (LiveTTS) — живая, разговорная", "casual", "livetts"),
+            Voice("vera", "Вера (LiveTTS) — живая, разговорная", "casual", "livetts"),
+            Voice("irina", "Ирина (LiveTTS) — рассказчик", "narrator", "livetts"),
+            Voice("dasha", "Даша — дружелюбная (как в английском)", "friendly"),
+            Voice("marina", "Марина — дружелюбная", "friendly"),
+        )
+
         /** Достаём аудио из ответа v3: несколько JSON-объектов подряд (по строкам или слитно). */
         fun parseV3Audio(raw: String): ByteArray {
             val out = java.io.ByteArrayOutputStream()

@@ -60,7 +60,7 @@ fun BigButton(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
-    brush: Brush = Palette.button,
+    brush: Brush = accentBrush,
     enabled: Boolean = true,
     appear: Int = -1,
     onClick: () -> Unit,
@@ -77,7 +77,7 @@ fun BigButton(
 
 /** Обычная кнопка поменьше. */
 @Composable
-fun PillButton(text: String, modifier: Modifier = Modifier, brush: Brush = Palette.button, enabled: Boolean = true, onClick: () -> Unit) {
+fun PillButton(text: String, modifier: Modifier = Modifier, brush: Brush = accentBrush, enabled: Boolean = true, onClick: () -> Unit) {
     // Если кнопке задали ширину (weight, fillMaxWidth) — растягиваем лицевую часть, иначе кнопка по размеру текста.
     val fill = modifier != Modifier
     GlassButton(
@@ -205,7 +205,8 @@ fun Stars(count: Int, max: Int = 3, size: Int = 44) = PopStars(count, max, size.
 @Composable
 fun SoundButton(onClick: () -> Unit, slow: Boolean = false) {
     GlassButton(
-        onClick, brush = if (slow) Palette.bluish else Palette.pinkish, shape = CircleShape, depth = 4.dp,
+        onClick, brush = if (LocalMathStyle.current) (if (slow) MathPalette.teal else MathPalette.primary) else if (slow) Palette.bluish else Palette.pinkish,
+        shape = CircleShape, depth = 4.dp,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp),
     ) { AppIcon(if (slow) AppIcons.TURTLE else AppIcons.SPEAKER, size = 34.dp, tint = Color.White) }
 }

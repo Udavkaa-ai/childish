@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -39,6 +40,25 @@ object Palette {
     val pinkish = Brush.linearGradient(listOf(Color(0xCCF06BA8), Color(0xCCB063CC)))
     val bluish = Brush.linearGradient(listOf(Color(0xCC6F7FE0), Color(0xCC3FB5F0)))
 }
+
+/** Математика — построже: тёмно-синее, бирюзовое и графитовое стекло. */
+object MathPalette {
+    val Navy = Color(0xFF1F3A5F)
+    val Teal = Color(0xFF00897B)
+    val Burgundy = Color(0xFFB23A48)
+    val primary = Brush.linearGradient(listOf(Color(0xDB1F3A5F), Color(0xDB2F6690)))
+    val teal = Brush.linearGradient(listOf(Color(0xDB00796B), Color(0xDB26A69A)))
+    val slate = Brush.linearGradient(listOf(Color(0xC7455A64), Color(0xC778909C)))
+    val indigo = Brush.linearGradient(listOf(Color(0xDB303F9F), Color(0xDB5C6BC0)))
+    val burgundy = Brush.linearGradient(listOf(Color(0xDB8E2442), Color(0xDBB23A48)))
+}
+
+/** Экран относится к математике: строгий фон, кнопки и наряд Ники. */
+val LocalMathStyle = staticCompositionLocalOf { false }
+
+/** Основная кнопка в текущем предмете. */
+val accentBrush: Brush
+    @Composable get() = if (LocalMathStyle.current) MathPalette.primary else Palette.button
 
 @Composable
 fun SovushkaTheme(content: @Composable () -> Unit) {
@@ -80,6 +100,7 @@ val Nunito = FontFamily(
     Font(R.font.nunito_black, FontWeight.Black),
 )
 
-/** Фон всех экранов: небо, переливы света и плывущие пузырьки со звёздочками. */
+/** Фон всех экранов: небо с переливами для английского, тетрадь в клетку — для математики. */
 @Composable
-fun GradientScreen(content: @Composable BoxScope.() -> Unit) = MagicBackground(content)
+fun GradientScreen(content: @Composable BoxScope.() -> Unit) =
+    if (LocalMathStyle.current) NotebookBackground(content) else MagicBackground(content)

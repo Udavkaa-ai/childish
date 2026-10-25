@@ -43,6 +43,7 @@ import ru.sovushka.app.voice.ListenException
 import ru.sovushka.core.GrammarBank
 import ru.sovushka.core.Srs
 import ru.sovushka.core.ai.Tutor
+import ru.sovushka.core.math.MathBank
 import ru.sovushka.core.mesh.DiaryInsights
 import java.time.LocalDate
 
@@ -50,7 +51,7 @@ private data class ChatLine(val fromNika: Boolean, val text: String)
 
 /** Разговор с Никой голосом или текстом. */
 @Composable
-fun TutorScreen(vm: AppViewModel, lessonId: String?) {
+fun TutorScreen(vm: AppViewModel, lessonId: String?, math: Boolean = false) {
     val g = LocalContext.current.graph
     val mic = LocalMic.current
     val scope = rememberCoroutineScope()
@@ -60,6 +61,7 @@ fun TutorScreen(vm: AppViewModel, lessonId: String?) {
     val prefs = g.settings.value
     val llm = remember { g.llm() }
     val tutor = remember {
+        if (math) return@remember llm?.let { mathTutor(it, g.store.value, lessonId, prefs.olderName, prefs.olderAge) }
         llm?.let {
             val d = g.store.value
             val lesson = lessonId?.let { id -> d.lessons.firstOrNull { it.id == id } }
@@ -115,6 +117,8 @@ fun TutorScreen(vm: AppViewModel, lessonId: String?) {
             "Чтобы я могла разговаривать, попроси родителей подключить нейросеть в настройках."
         } else if (lessonId != null) {
             "Давай поговорим про этот урок! Спроси меня что-нибудь или скажи «проверь меня»."
+        } else if (math) {
+            "Привет! Спроси, как решить пример или задачу, или скажи «проверь меня» — дам пример."
         } else {
             "Привет! Спроси меня, как сказать что-нибудь по-английски, или скажи «проверь меня»."
         }
@@ -158,7 +162,7 @@ fun TutorScreen(vm: AppViewModel, lessonId: String?) {
                         MicButton(listening, level, size = 64.dp) { listen("ru-RU") }
                         Text("RU", fontSize = 12.sp, color = Palette.Muted)
                     }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (!math) Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         MicButton(listening, level, size = 64.dp, label = "🇬🇧") { listen("en-US") }
                         Text("EN", fontSize = 12.sp, color = Palette.Muted)
                     }
@@ -175,4 +179,21 @@ fun TutorScreen(vm: AppViewModel, lessonId: String?) {
             Spacer(Modifier.width(1.dp))
         }
     }
+}
+
+/** Ника-помощница по математике: знает урок, темы, где бывают ошибки, и школьные оценки. */
+private fun mathTutor(llm: ru.sovushka.core.ai.LlmClient, d: ru.sovushka.core.AppData, lessonId: String?, name: String, age: Int): Tutor {
+    val lesson = lessonId?.let { id -> d.mathLessons.firstOrNull { it.id == id } }
+    val topics = (lesson?.topics.orEmpty() + d.mathTopics.keys).distinct().mapNotNull { MathBank.topic(it)?.title }
+    val ctx = buildString {
+        if (lesson != null) {
+            append(lesson.title).append(". ")
+            if (lesson.rule.isNotBlank()) append("Правило: ").append(lesson.rule).append(' ')
+            lesson.problems.take(5).joinTo(this, prefix = "Задачи урока: ", separator = "; ", postfix = ". ") { "${it.prompt} (ответ ${it.answer})" }
+        }
+        append(DiaryInsights.mathTutorContext(d.diary, LocalDate.now().toString()))
+        val weak = d.mathTopics.filter { it.value.wrong > it.value.right }.keys.mapNotNull { MathBank.topic(it)?.title }
+        if (weak.isNotEmpty()) append(" Темы, где она чаще ошибается: ").append(weak.joinToString("; ")).append('.')
+    }
+    return Tutor(llm, name.ifBlank { "подружка" }, age, topics, ctx, math = true)
 }

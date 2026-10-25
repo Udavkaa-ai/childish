@@ -3,6 +3,10 @@ package ru.sovushka.app.ui
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -244,6 +248,70 @@ fun MagicBackground(content: @Composable BoxScope.() -> Unit) {
     }
 }
 
+/* ======================= Тетрадь (математика) ======================= */
+
+private val PAPER = Color(0xFFF8FAFD)
+private val GRID = Color(0xFFD9E4F1)
+private val MARGIN = Color(0xFFF3B7B3)
+private val SYMBOLS = listOf("+", "−", "×", ":", "=", "<", ">", "7", "3", "9", "½", "□", "%", "2", "5", "∠")
+
+private class Glyph(val x: Float, val y: Float, val speed: Float, val phase: Float, val spin: Float, val index: Int, val alpha: Float)
+
+private val glyphs = Random(11).let { r ->
+    List(14) {
+        Glyph(r.nextFloat(), r.nextFloat(), 0.4f + r.nextFloat() * 0.7f, r.nextFloat(), (r.nextFloat() - 0.5f) * 40f, it % SYMBOLS.size, 0.10f + r.nextFloat() * 0.10f)
+    }
+}
+
+/**
+ * Фон математики: лист тетради в клетку с полями, мягкие пятна света и медленно плывущие цифры и знаки.
+ * Сетка рисуется отдельно от движущихся знаков, поэтому каждый кадр перерисовываются только знаки.
+ */
+@Composable
+fun NotebookBackground(content: @Composable BoxScope.() -> Unit) {
+    val clock = rememberInfiniteTransition(label = "nb").animateFloat(
+        0f, 1f, infiniteRepeatable(tween(40_000, easing = LinearEasing)), label = "nbT",
+    )
+    val measurer = rememberTextMeasurer()
+    val layouts = remember {
+        SYMBOLS.map { measurer.measure(it, TextStyle(fontFamily = Nunito, fontSize = 30.sp, fontWeight = FontWeight.Black, color = MathPalette.Navy)) }
+    }
+    CompositionLocalProvider(LocalGlassClock provides clock) {
+        Box(
+            Modifier.fillMaxSize().background(PAPER).drawBehind {
+                val cell = 22.dp.toPx()
+                val line = 1.dp.toPx()
+                var x = cell
+                while (x < size.width) { drawLine(GRID, Offset(x, 0f), Offset(x, size.height), line); x += cell }
+                var y = cell
+                while (y < size.height) { drawLine(GRID, Offset(0f, y), Offset(size.width, y), line); y += cell }
+                // Поля тетради.
+                drawLine(MARGIN, Offset(size.width - cell * 1.5f, 0f), Offset(size.width - cell * 1.5f, size.height), 1.5f * line)
+            },
+        ) {
+            Canvas(Modifier.fillMaxSize().graphicsLayer()) {
+                val t = clock.value
+                // Два мягких пятна света — синее и бирюзовое — медленно плывут по листу.
+                val a = 2f * PI.toFloat() * t
+                val c1 = Offset((0.2f + 0.12f * sin(a)) * size.width, (0.18f + 0.06f * cos(a)) * size.height)
+                val c2 = Offset((0.85f + 0.1f * cos(a)) * size.width, (0.8f + 0.06f * sin(a)) * size.height)
+                val r = size.width * 0.7f
+                drawCircle(Brush.radialGradient(listOf(Color(0x332F6690), Color(0x002F6690)), c1, r), r, c1)
+                drawCircle(Brush.radialGradient(listOf(Color(0x2B26A69A), Color(0x0026A69A)), c2, r), r, c2)
+                glyphs.forEach { g ->
+                    val gy = ((g.y - t * g.speed) % 1f + 1f) % 1f * (size.height + 120f) - 60f
+                    val gx = g.x * size.width + sin((t * g.speed * 5f + g.phase) * 2f * PI.toFloat()) * 14f
+                    val layout = layouts[g.index]
+                    rotate(g.spin + sin((t + g.phase) * 2f * PI.toFloat()) * 10f, pivot = Offset(gx, gy)) {
+                        drawText(layout, topLeft = Offset(gx - layout.size.width / 2f, gy - layout.size.height / 2f), alpha = g.alpha)
+                    }
+                }
+            }
+            content()
+        }
+    }
+}
+
 /* ======================= Стекло ======================= */
 
 /** Светлая рамка стекла: ярче сверху-слева, где «падает свет». */
@@ -272,6 +340,11 @@ fun glowFor(brush: Brush): Color = when {
     brush === Palette.bluish -> Color(0xFF4F8FE0)
     brush === Palette.buttonSoft -> Color(0xFFC98BD0)
     brush === Palette.button -> Color(0xFFA25BD0)
+    brush === MathPalette.primary -> Color(0xFF1F3A5F)
+    brush === MathPalette.teal -> Color(0xFF00796B)
+    brush === MathPalette.slate -> Color(0xFF455A64)
+    brush === MathPalette.indigo -> Color(0xFF303F9F)
+    brush === MathPalette.burgundy -> Color(0xFF8E2442)
     brush === GlassGood -> Color(0xFF2E9A58)
     brush === GlassBad -> Color(0xFFD03A62)
     else -> Color.White
@@ -288,7 +361,7 @@ private val GlassDisabled: Brush = Brush.linearGradient(listOf(Color(0x88CFC8DA)
 fun GlassButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    brush: Brush = Palette.button,
+    brush: Brush = accentBrush,
     shape: Shape = RoundedCornerShape(26.dp),
     depth: Dp = 6.dp,
     enabled: Boolean = true,
@@ -464,6 +537,7 @@ fun GlassProgress(progress: Float, modifier: Modifier = Modifier) {
     val shimmer by rememberInfiniteTransition(label = "shimmer").animateFloat(
         0f, 1f, infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Restart), label = "sh",
     )
+    val fill = if (LocalMathStyle.current) MathPalette.teal else Palette.button
     Box(modifier.fillMaxWidth().height(22.dp)) {
         Canvas(Modifier.fillMaxWidth().height(14.dp).align(Alignment.CenterStart)) {
             val r = CornerRadius(size.height / 2)
@@ -471,7 +545,7 @@ fun GlassProgress(progress: Float, modifier: Modifier = Modifier) {
             drawRoundRect(Color.White, cornerRadius = r, style = Stroke(1.5f * density))
             val w = size.width * p
             if (w > 1f) {
-                drawRoundRect(Palette.button, size = Size(w, size.height), cornerRadius = r)
+                drawRoundRect(fill, size = Size(w, size.height), cornerRadius = r)
                 // Перелив: светлая полоса бежит по заполненной части.
                 val sx = (shimmer * 1.4f - 0.2f) * w
                 drawRoundRect(

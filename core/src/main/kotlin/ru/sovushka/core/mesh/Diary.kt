@@ -71,6 +71,32 @@ object DiaryInsights {
         return (fromList + fromLessons).distinctBy { it.date + it.text.trim() }.sortedBy { it.date }
     }
 
+    fun isMath(subject: String): Boolean = "матем" in subject.lowercase()
+
+    fun mathAverage(d: DiarySnapshot): String? = d.averages.firstOrNull { isMath(it.subject) }?.average?.takeIf { it.isNotBlank() }
+
+    fun mathMarks(d: DiarySnapshot): List<DiaryMark> = d.marks.filter { isMath(it.subject) }.sortedByDescending { it.date }
+
+    /** Домашка по математике на ближайшие дни. */
+    fun mathHomework(d: DiarySnapshot, today: String): List<DiaryHomework> {
+        val fromList = d.homework.filter { isMath(it.subject) && it.date >= today && it.text.isNotBlank() }
+        val fromLessons = d.lessons.filter { isMath(it.subject) && it.date >= today }
+            .flatMap { l -> l.homework.map { DiaryHomework(l.date, l.subject, it) } }
+        return (fromList + fromLessons).distinctBy { it.date + it.text.trim() }.sortedBy { it.date }
+    }
+
+    /** Справка для нейросети: как дела с математикой в школе. */
+    fun mathTutorContext(d: DiarySnapshot?, today: String): String {
+        if (d == null) return ""
+        val parts = mutableListOf<String>()
+        mathAverage(d)?.let { parts += "средний балл по математике в школе $it" }
+        mathMarks(d).take(6).takeIf { it.isNotEmpty() }?.let { m -> parts += "последние оценки: " + m.joinToString(", ") { it.value } }
+        d.lessons.filter { isMath(it.subject) && it.theme.isNotBlank() }.sortedByDescending { it.start }
+            .map { it.theme }.distinct().take(3).takeIf { it.isNotEmpty() }?.let { parts += "темы уроков в школе: " + it.joinToString("; ") }
+        mathHomework(d, today).take(2).takeIf { it.isNotEmpty() }?.let { h -> parts += "задано: " + h.joinToString("; ") { "${it.date}: ${it.text.take(200)}" } }
+        return if (parts.isEmpty()) "" else "Из школьного дневника: " + parts.joinToString(". ") + "."
+    }
+
     private val PAGE = Regex("""(?:стр(?:аниц[аыу])?|с)\.?\s*(\d{1,3})""", RegexOption.IGNORE_CASE)
 
     /** Номера страниц учебника из текста задания: «стр. 45 упр. 3» → [45]. */

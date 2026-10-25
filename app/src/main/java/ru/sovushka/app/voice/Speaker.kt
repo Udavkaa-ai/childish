@@ -21,6 +21,7 @@ import ru.sovushka.app.data.Prefs
 import ru.sovushka.app.data.Settings
 import ru.sovushka.core.SpeechText
 import ru.sovushka.core.ai.YandexSpeech
+import ru.sovushka.core.math.MathSpeech
 import java.io.File
 import java.security.MessageDigest
 import java.util.Locale
@@ -42,6 +43,10 @@ class Speaker(
     private val pending = ConcurrentHashMap<String, CompletableDeferred<Unit>>()
     private var job: Job? = null
     private var player: MediaPlayer? = null
+
+    /** Сейчас открыта математика: свой голос Яндекса и формулы читаются словами. */
+    @Volatile
+    var mathMode = false
 
     private val _speaking = MutableStateFlow(false)
     val speaking: StateFlow<Boolean> = _speaking
@@ -133,18 +138,20 @@ class Speaker(
     private fun english(p: Prefs): Locale = if (p.accent == "en-US") Locale.US else Locale.UK
 
     /** Сказать и не ждать (предыдущая фраза прерывается). */
-    fun speak(text: String, lang: SpeechText.Lang? = null, slow: Boolean = false) {
+    fun speak(text: String, lang: SpeechText.Lang? = null, slow: Boolean = false, math: Boolean = mathMode) {
         job?.cancel()
-        job = scope.launch { say(text, lang, slow) }
+        job = scope.launch { say(text, lang, slow, math) }
     }
 
     /** Сказать и дождаться конца. lang = null — язык определяется по кускам текста. */
-    suspend fun say(text: String, lang: SpeechText.Lang? = null, slow: Boolean = false) {
+    suspend fun say(text: String, lang: SpeechText.Lang? = null, slow: Boolean = false, math: Boolean = mathMode) {
         stopNow()
+        // В математике «47 : 5 = □» читается как «47 разделить на 5 равно сколько».
+        val spoken = if (math && lang != SpeechText.Lang.EN) MathSpeech.forSpeech(text) else text
         val segments = if (lang != null) {
-            listOf(SpeechText.Segment(SpeechText.clean(text), lang))
+            listOf(SpeechText.Segment(SpeechText.clean(spoken), lang))
         } else {
-            SpeechText.split(text)
+            SpeechText.split(spoken)
         }.filter { it.text.isNotBlank() }
         if (segments.isEmpty()) return
         _speaking.value = true
@@ -156,15 +163,23 @@ class Speaker(
                     _yandexError.value = "не указан API-ключ Yandex Cloud"
                 } else {
                     // Один голос Яндекса читает всю фразу целиком — и русские, и английские слова.
-                    try {
-                        playYandex(ya, segments.joinToString(" ") { it.text }, p, slow)
-                        _yandexError.value = null
-                        return
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        _yandexError.value = e.message ?: e.toString()
+                    val phrase = segments.joinToString(" ") { it.text }
+                    val main = YaVoice(p.yaVoice, p.yaRole, p.yaVoiceModel, p.yaSpeed, p.yaPitch)
+                    val voices = if (math) listOf(YaVoice(p.mathVoice, p.mathRole, p.mathVoiceModel, p.mathSpeed, 0f), main) else listOf(main)
+                    var failure: String? = null
+                    for (v in voices) {
+                        try {
+                            playYandex(ya, phrase, v, slow)
+                            // Если голос для математики не ответил, а обычный сработал — ошибку всё равно покажем в настройках.
+                            _yandexError.value = failure
+                            return
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            failure = (if (v !== main) "голос для математики (${v.name}): " else "") + (e.message ?: e.toString())
+                        }
                     }
+                    _yandexError.value = failure
                 }
             }
             for (seg in segments) speakAndroid(seg, p, slow)
@@ -188,13 +203,16 @@ class Speaker(
         pending.remove(id)
     }
 
-    private suspend fun playYandex(ya: YandexSpeech, text: String, p: Prefs, slow: Boolean) {
-        val speed = if (slow) 0.6 else p.yaSpeed.toDouble()
-        val pitch = Math.round(p.yaPitch).toDouble()
-        val key = sha1("v3|${p.yaVoice}|${p.yaRole}|${p.yaVoiceModel}|$speed|$pitch|$text")
+    /** Голос Яндекса: название, амплуа, модель, скорость и высота. */
+    private class YaVoice(val name: String, val role: String, val model: String, val speed: Float, val pitch: Float)
+
+    private suspend fun playYandex(ya: YandexSpeech, text: String, v: YaVoice, slow: Boolean) {
+        val speed = if (slow) 0.6 else v.speed.toDouble()
+        val pitch = Math.round(v.pitch).toDouble()
+        val key = sha1("v3|${v.name}|${v.role}|${v.model}|$speed|$pitch|$text")
         val file = File(context.filesDir, "tts/$key.mp3")
         if (!file.exists()) {
-            val bytes = ya.synthesizeV3(text, p.yaVoice, p.yaRole, speed, p.yaVoiceModel, pitch)
+            val bytes = ya.synthesizeV3(text, v.name, v.role, speed, v.model, pitch)
             withContext(Dispatchers.IO) { file.parentFile?.mkdirs(); file.writeBytes(bytes) }
         }
         suspendCancellableCoroutine { cont ->

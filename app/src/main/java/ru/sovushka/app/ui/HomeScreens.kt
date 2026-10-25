@@ -104,9 +104,9 @@ fun ProfilesScreen(vm: AppViewModel) {
         ) {
             NikaSays("Кто сегодня будет заниматься?", NikaMood.WAVE, talking, nikaHeight = 190.dp)
             AuthorBadge()
-            ProfileCard(true, "👧", prefs.olderName.ifBlank { "Старшая" }, "Учебник, правила, повторение", Palette.pinkish, appear = 0) { vm.go(Screen.OlderHome) }
+            ProfileCard(true, "👧", prefs.olderName.ifBlank { "Старшая" }, "Английский и математика", Palette.pinkish, appear = 0) { vm.go(Screen.SubjectChoice(true)) }
             if (prefs.youngerName.isNotBlank()) {
-                ProfileCard(false, "👧", prefs.youngerName, "Картинки и слова на слух", Palette.bluish, appear = 1) { vm.go(Screen.YoungerHome) }
+                ProfileCard(false, "👧", prefs.youngerName, "Слова на слух и счёт до 20", Palette.bluish, appear = 1) { vm.go(Screen.SubjectChoice(false)) }
             }
             Spacer(Modifier.weight(1f))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

@@ -33,6 +33,11 @@ data class Prefs(
     val yaVoiceModel: String = "",
     val yaSpeed: Float = 1.05f,
     val yaPitch: Float = 29f,
+    /** Голос Яндекса для математики (по умолчанию живой голос LiveTTS). */
+    val mathVoice: String = "sofia",
+    val mathRole: String = "casual",
+    val mathVoiceModel: String = "livetts",
+    val mathSpeed: Float = 1.0f,
     val pitchEn: Float = 1.08f,
     val pitchRu: Float = 1.08f,
     val meshToken: String = "",
@@ -81,6 +86,10 @@ class Settings(context: Context) {
             yaVoiceModel = sp.getString("yaVoiceModel", d.yaVoiceModel)!!,
             yaSpeed = sp.getFloat("yaSpeed", d.yaSpeed),
             yaPitch = sp.getFloat("yaPitch", d.yaPitch),
+            mathVoice = sp.getString("mathVoice", d.mathVoice)!!,
+            mathRole = sp.getString("mathRole", d.mathRole)!!,
+            mathVoiceModel = sp.getString("mathVoiceModel", d.mathVoiceModel)!!,
+            mathSpeed = sp.getFloat("mathSpeed", d.mathSpeed),
             pitchEn = sp.getFloat("pitchEn", d.pitchEn),
             pitchRu = sp.getFloat("pitchRu", d.pitchRu),
             meshToken = sp.getString("meshToken", d.meshToken)!!,
@@ -103,6 +112,8 @@ class Settings(context: Context) {
             .putString("yaVoice", p.yaVoice).putString("yaRole", p.yaRole).putString("yaVoiceModel", p.yaVoiceModel)
             .putFloat("yaSpeed", p.yaSpeed).putFloat("yaPitch", p.yaPitch)
             .putFloat("pitchEn", p.pitchEn).putFloat("pitchRu", p.pitchRu)
+            .putString("mathVoice", p.mathVoice).putString("mathRole", p.mathRole).putString("mathVoiceModel", p.mathVoiceModel)
+            .putFloat("mathSpeed", p.mathSpeed)
             .putString("meshToken", p.meshToken).putLong("meshStudentId", p.meshStudentId)
             .putLong("avatarStamp", p.avatarStamp)
             .apply()
