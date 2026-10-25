@@ -275,10 +275,14 @@ fun NikaVector(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean =
                         rotate(sway, pivot = Offset(46f, 118f)) {
                             drawPath(LOCK_L, Vol.lockL)
                             drawPath(GLOSS_L, Color(0x8C5A80FF), style = Stroke(3f, cap = StrokeCap.Round))
+                            drawPath(GLOSS_L2, Color(0x808FA8FF), style = Stroke(2f, cap = StrokeCap.Round))
+                            drawPath(GLOSS_L3, Color.White.copy(alpha = 0.45f), style = Stroke(1.2f, cap = StrokeCap.Round))
                         }
                         rotate(-sway, pivot = Offset(154f, 118f)) {
                             drawPath(LOCK_R, Vol.lockR)
                             drawPath(GLOSS_R, Color(0x595A80FF), style = Stroke(2.5f, cap = StrokeCap.Round))
+                            drawPath(GLOSS_R2, Color(0x668FA8FF), style = Stroke(2f, cap = StrokeCap.Round))
+                            drawPath(GLOSS_R3, Color.White.copy(alpha = 0.35f), style = Stroke(1.1f, cap = StrokeCap.Round))
                         }
 
                         // Опущенные руки — за туловищем, поднятые — поверх головы (иначе голова их закрывает).
@@ -313,6 +317,10 @@ fun NikaVector(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean =
                                 drawPath(SHINE_1, Color(0xBF8FA8FF), style = Stroke(5f, cap = StrokeCap.Round))
                                 drawPath(SHINE_2, Color(0x808FA8FF), style = Stroke(4f, cap = StrokeCap.Round))
                                 drawPath(SHINE_3, Color.White.copy(alpha = 0.55f), style = Stroke(1.8f, cap = StrokeCap.Round))
+                                drawPath(SHINE_4, Color.White.copy(alpha = 0.55f), style = Stroke(1.6f, cap = StrokeCap.Round))
+                                drawPath(SHINE_5, Color(0x998FA8FF), style = Stroke(3f, cap = StrokeCap.Round))
+                                drawPath(SHINE_6, Color(0xB3B5C5FF), style = Stroke(2.4f, cap = StrokeCap.Round))
+                                for (sp in SPARKLES) drawPath(sp, Color.White.copy(alpha = 0.9f))
                                 rotate(-18f, pivot = Offset(58f, 64f)) {
                                     scale(1.3f, pivot = Offset(58f, 64f)) {
                                         drawPath(BOW, look.bow)
@@ -687,5 +695,21 @@ private val BOW = svg("M58,64 L47,57 L46,71 Z M58,64 L69,57 L70,71 Z")
 private val SHINE_1 = svg("M46,72 C60,52 78,42 96,38")
 private val SHINE_2 = svg("M130,42 C148,48 162,60 170,78")
 private val SHINE_3 = svg("M60,58 C72,47 84,42 92,40")
+private val SHINE_4 = svg("M140,46 C152,52 160,61 166,71")
+private val SHINE_5 = svg("M34,96 C40,86 46,79 52,74")
+private val SHINE_6 = svg("M104,34 C112,33 120,34 126,36")
+private val GLOSS_L2 = svg("M53,150 C49,180 48,210 46,242")
+private val GLOSS_L3 = svg("M43,150 C38,176 37,200 33,226")
+private val GLOSS_R2 = svg("M147,150 C151,180 152,210 154,242")
+private val GLOSS_R3 = svg("M158,152 C163,178 164,200 168,226")
+
+/** Искорки-звёздочки на волосах. */
+private val SPARKLES = listOf(Triple(98f, 40f, 1.6f), Triple(84f, 44f, 1f), Triple(158f, 60f, 1.2f)).map { (x, y, r) ->
+    val d = r * 2.4f
+    Path().apply {
+        moveTo(x, y - d); quadraticBezierTo(x, y, x + d, y); quadraticBezierTo(x, y, x, y + d)
+        quadraticBezierTo(x, y, x - d, y); quadraticBezierTo(x, y, x, y - d); close()
+    }
+}
 private val GLOSS_L = svg("M46,140 C40,170 38,205 32,238")
 private val GLOSS_R = svg("M156,140 C163,172 165,205 170,236")
