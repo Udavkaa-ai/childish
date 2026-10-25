@@ -116,4 +116,19 @@ class GrammarTest {
         }
         assertEquals("pet", ComicBook.forTopic("have_got")?.id)
     }
+
+    @Test
+    fun comicHighlightsWholeWordsAndLongestPhrase() {
+        val pet = ComicBook.byId("pet")!!
+        val t = "Has it got wings? It has got big ears."
+        assertEquals(listOf("Has", "has got"), pet.highlights(t).map { t.substring(it) })
+        val can = ComicBook.byId("can")!!
+        val c = "No, it can't! Can you swim? I can."
+        assertEquals(listOf("can't", "Can", "can"), can.highlights(c).map { c.substring(it) })
+        assertTrue(ComicBook.byId("cat")!!.highlights("Is it in the box?").map { "Is it in the box?".substring(it) } == listOf("in"))
+        ComicBook.comics.forEach { cm ->
+            assertTrue(cm.lesson.isNotBlank(), cm.id)
+            assertTrue(cm.lines.any { cm.highlights(it.en).isNotEmpty() }, cm.id)
+        }
+    }
 }

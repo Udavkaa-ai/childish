@@ -48,7 +48,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -167,6 +172,7 @@ fun ComicScreen(vm: AppViewModel, id: String) {
     var current by remember { mutableIntStateOf(-1) }
     var reading by remember { mutableStateOf<Job?>(null) }
     var zoom by remember { mutableStateOf(false) }
+    var showRu by remember { mutableStateOf(true) }
     LaunchedEffect(id) { g.store.update { it.copy(comicsRead = it.comicsRead + id) } }
 
     fun readAll() {
@@ -180,6 +186,9 @@ fun ComicScreen(vm: AppViewModel, id: String) {
                     g.speaker.say(line.ru, SpeechText.Lang.RU)
                     delay(450)
                 }
+                // В конце — чему учит комикс.
+                current = LESSON
+                g.speaker.say("А теперь главное. " + c.lesson)
             } finally {
                 current = -1
             }
@@ -202,10 +211,22 @@ fun ComicScreen(vm: AppViewModel, id: String) {
                         .clip(RoundedCornerShape(18.dp)).clickable { zoom = true },
                 )
                 Text("Нажми на комикс, чтобы рассмотреть поближе", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                LessonCard(c, active = current == LESSON) {
+                    reading?.cancel(); scope.launch { current = LESSON; g.speaker.say(c.lesson); current = -1 }
+                }
                 if (reading == null) {
-                    BigButton("🔊", "Читаем вместе с Никой", subtitle = "По-английски и с переводом", brush = Palette.pinkish) { readAll() }
+                    BigButton("🔊", "Читаем вместе с Никой", subtitle = "По-английски, с переводом и объяснением", brush = Palette.pinkish) { readAll() }
                 } else {
                     BigButton("⏸", "Стоп", brush = Palette.bluish) { reading?.cancel(); g.speaker.stop() }
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Реплики", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Text(
+                        if (showRu) "🙈 Спрятать перевод" else "👀 Показать перевод",
+                        fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Palette.Ink,
+                        modifier = Modifier.glass(RoundedCornerShape(50), Color.White.copy(alpha = 0.7f))
+                            .clickable { showRu = !showRu }.padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
                 }
                 c.lines.forEachIndexed { i, line ->
                     val active = i == current
@@ -222,8 +243,9 @@ fun ComicScreen(vm: AppViewModel, id: String) {
                         ) { Text("${i + 1}", color = Color.White, fontWeight = FontWeight.Black) }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(line.en, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Ink)
-                            Text(line.ru, fontSize = 15.sp, color = Palette.Muted)
+                            Text(highlighted(c, line.en), fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Ink)
+                            // Перевод можно спрятать, чтобы проверить себя; во время чтения он виден у текущей реплики.
+                            if (showRu || active) Text(line.ru, fontSize = 15.sp, color = Palette.Muted)
                         }
                         AppIcon(AppIcons.SPEAKER, size = 28.dp)
                     }
@@ -245,6 +267,50 @@ fun ComicScreen(vm: AppViewModel, id: String) {
         }
     }
     if (zoom) ZoomDialog(comicPage(id), pageRatio(id)) { zoom = false }
+}
+
+private const val LESSON = 100
+
+/** Реплика, где слова правила выделены розовым. */
+private fun highlighted(c: Comic, text: String): AnnotatedString = buildAnnotatedString {
+    append(text)
+    c.highlights(text).forEach { r ->
+        addStyle(SpanStyle(color = Palette.Pink, fontWeight = FontWeight.Black, textDecoration = TextDecoration.Underline), r.first, r.last + 1)
+    }
+}
+
+/** «Чему учит этот комикс»: правило на примерах из комикса, Ника читает вслух. */
+@Composable
+private fun LessonCard(c: Comic, active: Boolean, onSpeak: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth()
+            .glass(RoundedCornerShape(22.dp), if (active) Palette.PinkLight.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.78f), rim = 2.dp)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AppIcon(AppIcons.BULB, size = 30.dp)
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Чему учит этот комикс", style = MaterialTheme.typography.titleMedium)
+                Text(GrammarBank.topic(c.topic)?.title.orEmpty(), fontSize = 13.sp, color = Palette.Muted)
+            }
+            SoundButton(onSpeak)
+        }
+        Text(c.lesson, fontSize = 16.sp, color = Palette.Ink)
+        if (c.focus.isNotEmpty()) {
+            Text(
+                buildAnnotatedString {
+                    append("Ищи в репликах: ")
+                    c.focus.forEachIndexed { i, f ->
+                        if (i > 0) append(", ")
+                        withStyle(SpanStyle(color = Palette.Pink, fontWeight = FontWeight.Black)) { append(f) }
+                    }
+                },
+                fontSize = 15.sp,
+            )
+        }
+    }
 }
 
 /** Комикс на весь экран: щипок — увеличить, двойное касание — вернуть, крестик — закрыть. */
