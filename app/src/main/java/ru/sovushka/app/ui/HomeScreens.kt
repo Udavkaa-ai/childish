@@ -103,6 +103,7 @@ fun ProfilesScreen(vm: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             NikaSays("Кто сегодня будет заниматься?", NikaMood.WAVE, talking, nikaHeight = 190.dp)
+            AuthorBadge()
             ProfileCard(true, "👧", prefs.olderName.ifBlank { "Старшая" }, "Учебник, правила, повторение", Palette.pinkish, appear = 0) { vm.go(Screen.OlderHome) }
             if (prefs.youngerName.isNotBlank()) {
                 ProfileCard(false, "👧", prefs.youngerName, "Картинки и слова на слух", Palette.bluish, appear = 1) { vm.go(Screen.YoungerHome) }
@@ -119,6 +120,21 @@ fun ProfilesScreen(vm: AppViewModel) {
                 }
             }
         }
+    }
+}
+
+/** Подпись автора персонажа. */
+@Composable
+private fun AuthorBadge() {
+    Row(
+        Modifier.glass(RoundedCornerShape(50), Color.White.copy(alpha = 0.62f)).padding(horizontal = 14.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AppIcon(AppIcons.SPARKLE, size = 22.dp)
+        Text(
+            "  Ника — персонаж, которого придумала Вероника Капырина",
+            fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Palette.Ink,
+        )
     }
 }
 
