@@ -12,7 +12,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import ru.sovushka.app.R
 import androidx.compose.ui.unit.sp
 
 /** Палитра: розовый и голубой с градиентами. */
@@ -47,18 +50,34 @@ fun SovushkaTheme(content: @Composable () -> Unit) {
         onBackground = Palette.Ink,
         onSurface = Palette.Ink,
     )
-    val base = Typography()
-    val type = base.copy(
-        headlineMedium = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Ink),
-        titleLarge = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Palette.Ink),
-        titleMedium = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink),
-        bodyLarge = TextStyle(fontSize = 18.sp, color = Palette.Ink),
-        bodyMedium = TextStyle(fontSize = 16.sp, color = Palette.Ink),
+    val f = Nunito
+    val b = Typography()
+    val type = Typography(
+        displayLarge = b.displayLarge.copy(fontFamily = f), displayMedium = b.displayMedium.copy(fontFamily = f),
+        displaySmall = b.displaySmall.copy(fontFamily = f), headlineLarge = b.headlineLarge.copy(fontFamily = f),
+        headlineMedium = TextStyle(fontFamily = f, fontSize = 28.sp, fontWeight = FontWeight.Black, color = Palette.Ink),
+        headlineSmall = b.headlineSmall.copy(fontFamily = f),
+        titleLarge = TextStyle(fontFamily = f, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Ink),
+        titleMedium = TextStyle(fontFamily = f, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Ink),
+        titleSmall = b.titleSmall.copy(fontFamily = f),
+        bodyLarge = TextStyle(fontFamily = f, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink),
+        bodyMedium = TextStyle(fontFamily = f, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink),
+        bodySmall = b.bodySmall.copy(fontFamily = f),
+        labelLarge = b.labelLarge.copy(fontFamily = f, fontWeight = FontWeight.Bold),
+        labelMedium = b.labelMedium.copy(fontFamily = f), labelSmall = b.labelSmall.copy(fontFamily = f),
     )
     MaterialTheme(colorScheme = colors, typography = type, content = content)
 }
 
+/** Округлый детский шрифт Nunito (OFL), с кириллицей. */
+val Nunito = FontFamily(
+    Font(R.font.nunito_regular, FontWeight.Normal),
+    Font(R.font.nunito_semibold, FontWeight.SemiBold),
+    Font(R.font.nunito_bold, FontWeight.Bold),
+    Font(R.font.nunito_extrabold, FontWeight.ExtraBold),
+    Font(R.font.nunito_black, FontWeight.Black),
+)
+
+/** Фон всех экранов: живой градиент с плывущими пузырьками и звёздочками. */
 @Composable
-fun GradientScreen(content: @Composable BoxScope.() -> Unit) {
-    Box(Modifier.fillMaxSize().background(Palette.background), content = content)
-}
+fun GradientScreen(content: @Composable BoxScope.() -> Unit) = MagicBackground(content)

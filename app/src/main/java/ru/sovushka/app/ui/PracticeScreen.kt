@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -66,6 +67,9 @@ class PracticeState(tasks: List<Task>) {
     var index by mutableIntStateOf(0)
     var result by mutableStateOf<Boolean?>(null)
     var feedback by mutableStateOf("")
+    /** Счётчики для эффектов: вспышка звёзд на верный ответ, встряхивание на ошибку. */
+    var burst by mutableIntStateOf(0)
+    var shakes by mutableIntStateOf(0)
     var finished by mutableStateOf(false)
     val wrongs = mutableMapOf<String, Int>()
     /** Тема → были ли ошибки (false — всё верно). */
@@ -84,6 +88,7 @@ class PracticeState(tasks: List<Task>) {
         if (t is Task.Grammar && t.drill.topic.isNotBlank()) {
             topicErrors[t.drill.topic] = (topicErrors[t.drill.topic] ?: false) || !ok
         }
+        if (ok) burst++ else shakes++
         if (ok) correct++ else {
             t.word?.let { wrongs[it.id] = (wrongs[it.id] ?: 0) + 1 }
             if (requeued.add(t)) queue.add(t)
@@ -167,11 +172,7 @@ fun PracticeScreen(vm: AppViewModel, screen: Screen.Practice) {
                 Results(state, stars, talking, onAgain = { vm.replace(Screen.Practice(screen.lessonId, topicId = screen.topicId)) }, onHome = { vm.back() })
                 return@Column
             }
-            LinearProgressIndicator(
-                progress = { state.index.toFloat() / state.queue.size },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(10.dp).clip(RoundedCornerShape(5.dp)),
-                color = Palette.Pink, trackColor = Color.White,
-            )
+            CandyProgress(state.index.toFloat() / state.queue.size, Modifier.padding(horizontal = 16.dp))
             val mood = when {
                 state.result == true -> NikaMood.HAPPY
                 state.result == false -> NikaMood.SAD
@@ -184,6 +185,7 @@ fun PracticeScreen(vm: AppViewModel, screen: Screen.Practice) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 NikaSays(state.feedback, mood, talking, nikaHeight = 120.dp)
+                Column(Modifier.shake(state.shakes), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 key(state.index) {
                     when (val t = state.task) {
                         is Task.Intro -> IntroTask(g, t.word) { state.next() }
@@ -196,6 +198,7 @@ fun PracticeScreen(vm: AppViewModel, screen: Screen.Practice) {
                         null -> {}
                     }
                 }
+                }
             }
             if (state.result != null) {
                 Box(Modifier.navigationBarsPadding().padding(16.dp)) {
@@ -203,6 +206,8 @@ fun PracticeScreen(vm: AppViewModel, screen: Screen.Practice) {
                 }
             }
         }
+        // Верный ответ — вспышка звёздочек.
+        ConfettiBurst(state.burst, origin = Offset(0.5f, 0.42f), count = 18, stars = true, durationMs = 1100)
     }
 }
 
@@ -225,7 +230,11 @@ private fun react(g: AppGraph, state: PracticeState, ok: Boolean, w: Word?, scop
 
 @Composable
 private fun WordPicture(w: Word, big: Boolean = true) {
-    if (w.emoji.isNotBlank()) Text(w.emoji, fontSize = if (big) 72.sp else 48.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+    if (w.emoji.isNotBlank()) {
+        Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+            Sticker(w.emoji, if (big) 120.dp else 84.dp, seed = w.en.hashCode())
+        }
+    }
 }
 
 @Composable
@@ -544,23 +553,36 @@ private fun TokenRows(tokens: List<String>, onTap: (Int) -> Unit) {
 private fun Results(state: PracticeState, stars: Int, talking: Boolean, onAgain: () -> Unit, onHome: () -> Unit) {
     val g = LocalContext.current.graph
     val hard = g.store.value.words.filter { (state.wrongs[it.id] ?: 0) > 0 }
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Nika(NikaMood.DANCE, Modifier.size(width = 150.dp, height = 240.dp), talking = talking)
-        Stars(stars)
-        Text("Правильно: ${state.correct} из ${state.total}", style = MaterialTheme.typography.titleLarge)
-        if (hard.isNotEmpty()) {
-            CardBox {
-                Column {
-                    Text("Эти слова Ника повторит с тобой завтра:", fontWeight = FontWeight.SemiBold)
-                    hard.forEach { Text("${it.emoji} ${it.en} — ${it.ru}", fontSize = 17.sp) }
+    var party by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) { party = 1; delay(1300); party = 2 }
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                if (stars == 3) "Великолепно!" else if (stars == 2) "Отлично!" else "Молодец, что старалась!",
+                style = MaterialTheme.typography.headlineMedium,
+            )
+            Nika(NikaMood.DANCE, Modifier.size(width = 150.dp, height = 240.dp), talking = talking)
+            Stars(stars)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AppIcon(AppIcons.TROPHY, size = 34.dp)
+                Text("  Правильно: ${state.correct} из ${state.total}", style = MaterialTheme.typography.titleLarge)
+            }
+            if (hard.isNotEmpty()) {
+                CardBox {
+                    Column {
+                        Text("Эти слова Ника повторит с тобой завтра:", fontWeight = FontWeight.SemiBold)
+                        hard.forEach { Text("${it.emoji} ${it.en} — ${it.ru}", fontSize = 17.sp) }
+                    }
                 }
             }
+            BigButton("🔁", "Ещё раз", brush = Palette.pinkish, appear = 2, onClick = onAgain)
+            BigButton("🏠", "Готово", brush = Palette.bluish, appear = 3, onClick = onHome)
         }
-        BigButton("🔁", "Ещё раз", brush = Palette.pinkish, onClick = onAgain)
-        BigButton("🏠", "Готово", brush = Palette.bluish, onClick = onHome)
+        // Праздничное конфетти: два залпа.
+        ConfettiBurst(party, origin = Offset(0.5f, 0.3f), count = 80)
     }
 }

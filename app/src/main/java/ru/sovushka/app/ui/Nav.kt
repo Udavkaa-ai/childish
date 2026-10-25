@@ -2,6 +2,14 @@ package ru.sovushka.app.ui
 
 import android.app.Application
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -120,7 +128,25 @@ fun AppRoot(mic: MicGate) {
     val vm: AppViewModel = viewModel()
     CompositionLocalProvider(LocalMic provides mic) {
         BackHandler(enabled = vm.stack.size > 1) { vm.back() }
-        when (val s = vm.current) {
+        // Плавная смена экранов: вперёд — въезд справа, назад — слева.
+        val lastDepth = remember { intArrayOf(vm.stack.size) }
+        val forward = vm.stack.size >= lastDepth[0]
+        lastDepth[0] = vm.stack.size
+        AnimatedContent(
+            targetState = vm.current,
+            transitionSpec = {
+                val dir = if (forward) 1 else -1
+                (fadeIn(tween(220)) + slideInHorizontally(tween(260)) { w -> dir * w / 6 }) togetherWith
+                    (fadeOut(tween(160)) + slideOutHorizontally(tween(260)) { w -> -dir * w / 10 })
+            },
+            label = "screens",
+        ) { s -> ScreenContent(vm, s) }
+    }
+}
+
+@Composable
+private fun ScreenContent(vm: AppViewModel, s: Screen) {
+    when (s) {
             Screen.Setup -> SetupScreen(vm)
             Screen.Profiles -> ProfilesScreen(vm)
             Screen.OlderHome -> OlderHomeScreen(vm)
@@ -140,6 +166,5 @@ fun AppRoot(mic: MicGate) {
             is Screen.YoungerGame -> if (s.find) FindGameScreen(vm, s) else RepeatGameScreen(vm, s)
             is Screen.ParentGate -> ParentGateScreen(vm, s.next)
             Screen.Settings -> SettingsScreen(vm)
-        }
     }
 }

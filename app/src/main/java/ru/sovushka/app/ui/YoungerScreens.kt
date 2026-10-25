@@ -89,7 +89,7 @@ fun YoungerHomeScreen(vm: AppViewModel) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(packs, key = { it.id }) { p ->
-                    BigTile(p.emoji, if (p.id == SISTER_PACK) Palette.pinkish else Palette.buttonSoft) {
+                    BigTile(p.emoji, if (p.id == SISTER_PACK) Palette.pinkish else Palette.buttonSoft, Modifier.aspectRatio(0.92f)) {
                         g.speaker.speak(p.title)
                         vm.go(Screen.YoungerPack(p.id))
                     }
@@ -101,10 +101,13 @@ fun YoungerHomeScreen(vm: AppViewModel) {
 
 @Composable
 private fun BigTile(emoji: String, brush: Brush, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier.aspectRatio(1f).shadow(6.dp, RoundedCornerShape(26.dp)).clip(RoundedCornerShape(26.dp)).background(brush).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Text(emoji, fontSize = 52.sp) }
+    val spec = iconFor(emoji)
+    CandyButton(onClick, modifier, brush = brush, shape = RoundedCornerShape(28.dp), depth = 7.dp,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1f), contentAlignment = Alignment.Center) {
+            if (spec != null) AppIcon(spec, size = 72.dp, tint = Color.White) else Sticker(emoji, 78.dp)
+        }
+    }
 }
 
 /** Выбор игры: попугай — повторять, лупа — искать. */
@@ -121,7 +124,7 @@ fun YoungerPackScreen(vm: AppViewModel, packId: String) {
             TopBar(pack.emoji, onBack = { vm.back() })
             Nika(if (talking) NikaMood.TALK else NikaMood.IDLE, Modifier.height(170.dp).clickable { g.speaker.speak(intro) }, talking = talking)
             Column(Modifier.padding(24.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                BigTile("🦜", Palette.pinkish, Modifier.size(170.dp)) {
+                BigTile("🎤", Palette.pinkish, Modifier.size(170.dp)) {
                     vm.go(Screen.YoungerGame(packId, find = false))
                 }
                 BigTile("🔍", Palette.bluish, Modifier.size(170.dp)) {
@@ -187,11 +190,7 @@ fun RepeatGameScreen(vm: AppViewModel, screen: Screen.YoungerGame) {
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp)) {
                 Nika(if (talking) NikaMood.TALK else if (listening) NikaMood.LISTEN else mood, Modifier.height(170.dp), talking = talking)
-                Box(
-                    Modifier.size(200.dp).shadow(8.dp, CircleShape).clip(CircleShape).background(Color.White)
-                        .clickable { g.speaker.speak(w.en, SpeechText.Lang.EN) },
-                    contentAlignment = Alignment.Center,
-                ) { Text(w.emoji, fontSize = 110.sp) }
+                Sticker(w.emoji, 190.dp, seed = w.en.hashCode(), modifier = Modifier.clickable { g.speaker.speak(w.en, SpeechText.Lang.EN) })
             }
             Text(w.en, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, color = Palette.Pink, modifier = Modifier.padding(top = 12.dp))
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -309,7 +308,7 @@ fun FindGameScreen(vm: AppViewModel, screen: Screen.YoungerGame) {
                                 }
                             },
                         contentAlignment = Alignment.Center,
-                    ) { Text(o.emoji, fontSize = 80.sp) }
+                    ) { Sticker(o.emoji, 96.dp, seed = o.en.hashCode()) }
                 }
             }
         }

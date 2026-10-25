@@ -78,7 +78,11 @@ fun GrammarScreen(vm: AppViewModel) {
                                 .clickable { vm.go(Screen.Topic(topic.id)) }.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(topicBadge(st, t), fontSize = 24.sp)
+                            val badge = topicBadge(st, t)
+                            AppIcon(
+                                when (badge) { "⭐" -> AppIcons.STAR; "🔁" -> AppIcons.REPEAT; "🌱" -> AppIcons.HEART; else -> AppIcons.SPARKLE },
+                                size = 34.dp,
+                            )
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)

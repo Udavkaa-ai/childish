@@ -102,35 +102,34 @@ fun ProfilesScreen(vm: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             NikaSays("Кто сегодня будет заниматься?", NikaMood.WAVE, talking, nikaHeight = 190.dp)
-            ProfileCard(true, "👧", prefs.olderName.ifBlank { "Старшая" }, "Учебник, правило, повторение", Palette.pinkish) { vm.go(Screen.OlderHome) }
+            ProfileCard(true, "👧", prefs.olderName.ifBlank { "Старшая" }, "Учебник, правила, повторение", Palette.pinkish, appear = 0) { vm.go(Screen.OlderHome) }
             if (prefs.youngerName.isNotBlank()) {
-                ProfileCard(false, "👧", prefs.youngerName, "Картинки и слова на слух", Palette.bluish) { vm.go(Screen.YoungerHome) }
+                ProfileCard(false, "👧", prefs.youngerName, "Картинки и слова на слух", Palette.bluish, appear = 1) { vm.go(Screen.YoungerHome) }
             }
             Spacer(Modifier.weight(1f))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Text(
-                    "⚙️ Для родителей",
-                    color = Palette.Muted,
-                    fontSize = 16.sp,
-                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { vm.go(Screen.ParentGate(Screen.Settings)) }.padding(10.dp),
-                )
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.7f))
+                        .clickable { vm.go(Screen.ParentGate(Screen.Settings)) }.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AppIcon(AppIcons.GEAR, size = 24.dp)
+                    Text("  Для родителей", color = Palette.Muted, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ProfileCard(older: Boolean, emoji: String, name: String, subtitle: String, brush: androidx.compose.ui.graphics.Brush, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().shadow(8.dp, RoundedCornerShape(28.dp)).clip(RoundedCornerShape(28.dp)).background(brush)
-            .clickable(onClick = onClick).padding(22.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+private fun ProfileCard(older: Boolean, emoji: String, name: String, subtitle: String, brush: androidx.compose.ui.graphics.Brush, appear: Int, onClick: () -> Unit) {
+    CandyButton(onClick, Modifier.fillMaxWidth(), brush = brush, shape = RoundedCornerShape(30.dp), depth = 8.dp, appear = appear, fillWidth = true,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp)) {
         KidAvatar(older, emoji, 84.dp)
         Spacer(Modifier.width(16.dp))
         Column {
-            Text(name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
-            Text(subtitle, color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp)
+            Text(name, color = Color.White, fontSize = 31.sp, fontWeight = FontWeight.Black)
+            Text(subtitle, color = Color.White.copy(alpha = 0.92f), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -182,7 +181,9 @@ fun OlderHomeScreen(vm: AppViewModel) {
         Column(Modifier.fillMaxSize()) {
             TopBar(prefs.olderName.ifBlank { "Привет!" }, onBack = { vm.back() }) {
                 KidAvatar(true, "👧", 40.dp, Modifier.padding(end = 10.dp))
-                Text("⭐ ${data.older.stars}   🔥 ${data.older.visibleStreak(t)}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Palette.Ink)
+                CounterBadge(AppIcons.STAR, data.older.stars)
+                Spacer(Modifier.width(6.dp))
+                CounterBadge(AppIcons.FLAME, data.older.visibleStreak(t), flicker = data.older.visibleStreak(t) > 0)
             }
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -207,7 +208,7 @@ fun OlderHomeScreen(vm: AppViewModel) {
                         }
                     }
                 }
-                BigButton("📸", "Новая страница учебника", subtitle = "Сфотографируй — Ника сделает урок") {
+                BigButton("📸", "Новая страница учебника", subtitle = "Сфотографируй — Ника сделает урок", appear = 0) {
                     if (vm.capture.draft != null || vm.capture.busy) vm.go(Screen.Capture) else { vm.capture.reset(); vm.go(Screen.Capture) }
                 }
                 BigButton(
@@ -218,17 +219,17 @@ fun OlderHomeScreen(vm: AppViewModel) {
                         dueTopics > 0 -> "Пора повторить правил: $dueTopics"
                         else -> "Всё повторено — молодец!"
                     },
-                    brush = Palette.pinkish, enabled = due > 0 || dueTopics > 0,
+                    brush = Palette.pinkish, enabled = due > 0 || dueTopics > 0, appear = 1,
                 ) { vm.go(Screen.Practice(null)) }
                 BigButton(
                     "📘", "Правила",
                     subtitle = "Темы 2–4 класса · выучено $learnedTopics из ${GrammarBank.topics.size}",
-                    brush = Palette.buttonSoft,
+                    brush = Palette.buttonSoft, appear = 2,
                 ) { vm.go(Screen.Grammar) }
-                BigButton("📚", "Мои уроки", subtitle = "Уроков: ${data.lessons.size} · выучено слов: $learned", brush = Palette.bluish) { vm.go(Screen.Lessons) }
-                BigButton("💬", "Поговорить с Никой", subtitle = "Спроси что угодно или скажи «проверь меня»", brush = Palette.buttonSoft) { vm.go(Screen.Tutor()) }
-                BigButton("🎒", "Готовые темы", subtitle = "Животные, еда, цвета и другие", brush = Palette.bluish) { vm.go(Screen.Packs) }
-                BigButton("🏫", "Дневник МЭШ", subtitle = "Расписание, оценки и домашка", brush = Palette.pinkish) { vm.go(Screen.Diary) }
+                BigButton("📚", "Мои уроки", subtitle = "Уроков: ${data.lessons.size} · выучено слов: $learned", brush = Palette.bluish, appear = 3) { vm.go(Screen.Lessons) }
+                BigButton("💬", "Поговорить с Никой", subtitle = "Спроси что угодно или скажи «проверь меня»", brush = Palette.buttonSoft, appear = 4) { vm.go(Screen.Tutor()) }
+                BigButton("🎒", "Готовые темы", subtitle = "Животные, еда, цвета и другие", brush = Palette.bluish, appear = 5) { vm.go(Screen.Packs) }
+                BigButton("🏫", "Дневник МЭШ", subtitle = "Расписание, оценки и домашка", brush = Palette.pinkish, appear = 6) { vm.go(Screen.Diary) }
                 Spacer(Modifier.height(12.dp))
             }
         }

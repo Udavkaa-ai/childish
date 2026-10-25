@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +35,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -50,7 +52,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.sovushka.app.graph
 
-/** Большая градиентная кнопка с эмодзи — основной элемент навигации. */
+/** Большая конфетная кнопка с иконкой — основной элемент навигации. */
 @Composable
 fun BigButton(
     emoji: String,
@@ -59,23 +61,15 @@ fun BigButton(
     subtitle: String? = null,
     brush: Brush = Palette.button,
     enabled: Boolean = true,
+    appear: Int = -1,
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .shadow(6.dp, RoundedCornerShape(24.dp))
-            .clip(RoundedCornerShape(24.dp))
-            .background(if (enabled) brush else Brush.linearGradient(listOf(Color(0xFFBDBDBD), Color(0xFF9E9E9E))))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(emoji, fontSize = 34.sp)
+    CandyButton(onClick, modifier.fillMaxWidth(), brush = brush, enabled = enabled, appear = appear, fillWidth = true) {
+        IconChip(iconFor(emoji), emoji)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            if (subtitle != null) Text(subtitle, color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp)
+            Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Black)
+            if (subtitle != null) Text(subtitle, color = Color.White.copy(alpha = 0.92f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -83,15 +77,16 @@ fun BigButton(
 /** Обычная кнопка поменьше. */
 @Composable
 fun PillButton(text: String, modifier: Modifier = Modifier, brush: Brush = Palette.button, enabled: Boolean = true, onClick: () -> Unit) {
-    Box(
-        modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (enabled) brush else Brush.linearGradient(listOf(Color(0xFFCFCFCF), Color(0xFFBDBDBD))))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 22.dp, vertical = 12.dp),
-        contentAlignment = Alignment.Center,
+    // Если кнопке задали ширину (weight, fillMaxWidth) — растягиваем лицевую часть, иначе кнопка по размеру текста.
+    val fill = modifier != Modifier
+    CandyButton(
+        onClick, modifier, brush = brush, shape = RoundedCornerShape(50), depth = 4.dp, enabled = enabled, fillWidth = fill,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 11.dp),
     ) {
-        Text(text, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text(
+            text, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center,
+            modifier = if (fill) Modifier.weight(1f) else Modifier,
+        )
     }
 }
 
@@ -102,10 +97,10 @@ fun TopBar(title: String, onBack: (() -> Unit)?, trailing: @Composable () -> Uni
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onBack != null) {
-            Box(
-                Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.8f)).clickable(onClick = onBack),
-                contentAlignment = Alignment.Center,
-            ) { Text("←", fontSize = 26.sp, color = Palette.Pink, fontWeight = FontWeight.Bold) }
+            CandyButton(
+                onBack, brush = WhiteCandy, shape = CircleShape, depth = 4.dp,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(9.dp),
+            ) { AppIcon(AppIcons.BACK, size = 30.dp) }
             Spacer(Modifier.width(10.dp))
         }
         Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
@@ -120,14 +115,23 @@ fun NikaSays(text: String, mood: NikaMood, talking: Boolean, modifier: Modifier 
         Nika(mood = mood, talking = talking, modifier = Modifier.height(nikaHeight))
         Spacer(Modifier.width(8.dp))
         if (text.isNotBlank()) {
-            Box(
-                Modifier
-                    .weight(1f)
-                    .shadow(3.dp, RoundedCornerShape(20.dp))
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White)
-                    .padding(14.dp),
-            ) { Text(text, style = MaterialTheme.typography.bodyLarge) }
+            Box(Modifier.weight(1f)) {
+                // Хвостик облачка в сторону Ники.
+                androidx.compose.foundation.Canvas(Modifier.size(18.dp, 22.dp).align(Alignment.CenterStart).offset(x = (-9).dp)) {
+                    val p = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(size.width, 0f); lineTo(0f, size.height / 2); lineTo(size.width, size.height); close()
+                    }
+                    drawPath(p, Color.White)
+                }
+                Box(
+                    Modifier
+                        .shadow(4.dp, RoundedCornerShape(22.dp))
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color.White)
+                        .border(2.dp, Palette.buttonSoft, RoundedCornerShape(22.dp))
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                ) { Text(text, style = MaterialTheme.typography.bodyLarge) }
+            }
         }
     }
 }
@@ -138,9 +142,10 @@ fun CardBox(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
         modifier
             .fillMaxWidth()
-            .shadow(3.dp, RoundedCornerShape(20.dp))
-            .clip(RoundedCornerShape(20.dp))
+            .shadow(4.dp, RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(Palette.Card)
+            .border(2.dp, Color(0xFFF3E8F7), RoundedCornerShape(22.dp))
             .padding(16.dp),
     ) { content() }
 }
@@ -149,56 +154,64 @@ enum class ChoiceState { NORMAL, RIGHT, WRONG, DIM }
 
 @Composable
 fun ChoiceButton(text: String, state: ChoiceState, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val bg = when (state) {
-        ChoiceState.RIGHT -> Palette.Good
-        ChoiceState.WRONG -> Palette.Bad
-        ChoiceState.DIM -> Color(0xFFF1EEF6)
-        ChoiceState.NORMAL -> Color.White
+    val brush = when (state) {
+        ChoiceState.RIGHT -> GoodCandy
+        ChoiceState.WRONG -> BadCandy
+        ChoiceState.DIM -> DimCandy
+        ChoiceState.NORMAL -> WhiteCandy
     }
     val fg = if (state == ChoiceState.RIGHT || state == ChoiceState.WRONG) Color.White else Palette.Ink
-    Box(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(bg)
-            .border(2.dp, if (state == ChoiceState.NORMAL) Palette.PinkLight else Color.Transparent, RoundedCornerShape(18.dp))
-            .clickable(enabled = state == ChoiceState.NORMAL, onClick = onClick)
-            .padding(vertical = 16.dp, horizontal = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) { Text(text, color = fg, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center) }
+    CandyButton(
+        { if (state == ChoiceState.NORMAL) onClick() }, modifier.fillMaxWidth(), brush = brush, shape = RoundedCornerShape(20.dp), depth = 5.dp, fillWidth = true,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 15.dp),
+    ) {
+        when (state) {
+            ChoiceState.RIGHT -> AppIcon(AppIcons.CHECK, size = 28.dp, tint = Color.White)
+            ChoiceState.WRONG -> AppIcon(AppIcons.CROSS, size = 28.dp, tint = Color.White)
+            else -> Spacer(Modifier.width(28.dp))
+        }
+        Text(text, color = fg, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(28.dp))
+    }
 }
 
-/** Круглая кнопка микрофона, пульсирует, пока слушает. */
+/** Круглая кнопка микрофона: пока слушает — пульсирует и расходится волнами. */
 @Composable
 fun MicButton(listening: Boolean, level: Float, size: Dp = 96.dp, label: String = "🎤", onClick: () -> Unit) {
     val pulse = rememberInfiniteTransition(label = "mic")
-    val p by pulse.animateFloat(1f, 1.12f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "p")
-    val scale = if (listening) p + level * 0.15f else 1f
+    val p by pulse.animateFloat(1f, 1.1f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "p")
+    val wave by pulse.animateFloat(0f, 1f, infiniteRepeatable(tween(1200)), label = "w")
+    val scale = if (listening) p + level * 0.12f else 1f
     Box(
-        Modifier
-            .size(size)
-            .scale(scale)
-            .shadow(8.dp, CircleShape)
-            .clip(CircleShape)
-            .background(if (listening) Brush.linearGradient(listOf(Palette.Bad, Palette.Pink)) else Palette.button)
-            .clickable(onClick = onClick),
+        Modifier.size(size * 1.35f).drawBehind {
+            if (listening) {
+                for (k in 0..1) {
+                    val w = (wave + k * 0.5f) % 1f
+                    drawCircle(Palette.Pink.copy(alpha = (1f - w) * 0.45f), radius = size.toPx() / 2 * (1f + w * 0.45f))
+                }
+            }
+        },
         contentAlignment = Alignment.Center,
-    ) { Text(label, fontSize = (size.value * 0.42f).sp) }
-}
-
-@Composable
-fun Stars(count: Int, max: Int = 3, size: Int = 44) {
-    Row(horizontalArrangement = Arrangement.Center) {
-        repeat(max) { i -> Text(if (i < count) "⭐" else "☆", fontSize = size.sp, color = Color(0xFFFFC107)) }
+    ) {
+        CandyButton(
+            onClick, Modifier.scale(scale), brush = if (listening) BadCandy else Palette.button, shape = CircleShape, depth = 6.dp,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(size * 0.2f),
+        ) {
+            val spec = iconFor(label)
+            if (spec != null) AppIcon(spec, size = size * 0.6f, tint = Color.White) else Text(label, fontSize = (size.value * 0.42f).sp)
+        }
     }
 }
 
 @Composable
+fun Stars(count: Int, max: Int = 3, size: Int = 44) = PopStars(count, max, size.dp)
+
+@Composable
 fun SoundButton(onClick: () -> Unit, slow: Boolean = false) {
-    Box(
-        Modifier.size(56.dp).clip(CircleShape).background(if (slow) Palette.bluish else Palette.pinkish).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Text(if (slow) "🐢" else "🔊", fontSize = 26.sp) }
+    CandyButton(
+        onClick, brush = if (slow) Palette.bluish else Palette.pinkish, shape = CircleShape, depth = 4.dp,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp),
+    ) { AppIcon(if (slow) AppIcons.TURTLE else AppIcons.SPEAKER, size = 34.dp, tint = Color.White) }
 }
 
 @Composable
@@ -229,3 +242,9 @@ fun KidAvatar(older: Boolean, emoji: String, size: Dp, modifier: Modifier = Modi
         }
     }
 }
+
+/** Конфетные «окраски» для кнопок-ответов и белых кнопок. */
+val WhiteCandy: Brush = Brush.verticalGradient(listOf(Color.White, Color(0xFFF7F1FB)))
+val GoodCandy: Brush = Brush.verticalGradient(listOf(Color(0xFF6BD48F), Color(0xFF3FB56C)))
+val BadCandy: Brush = Brush.verticalGradient(listOf(Color(0xFFFF7E9D), Color(0xFFE5486F)))
+val DimCandy: Brush = Brush.verticalGradient(listOf(Color(0xFFF4F0F8), Color(0xFFEAE4F1)))

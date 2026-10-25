@@ -198,7 +198,7 @@ fun DraftScreen(vm: AppViewModel) {
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Palette.Card).clickable { editing = i }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(w.emoji.ifBlank { "🔤" }, fontSize = 26.sp)
+                        if (w.emoji.isNotBlank()) Sticker(w.emoji, 44.dp, seed = w.en.hashCode()) else AppIcon(AppIcons.PENCIL, size = 38.dp)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(w.en, fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -284,7 +284,7 @@ fun LessonsScreen(vm: AppViewModel) {
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Palette.Card).clickable { vm.go(Screen.Lesson(l.id)) }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (l.photos.isNotEmpty()) PhotoThumb(l.photos.first(), 56) else Text(ws.firstOrNull()?.emoji?.ifBlank { null } ?: "📘", fontSize = 40.sp)
+                        if (l.photos.isNotEmpty()) PhotoThumb(l.photos.first(), 56) else ws.firstOrNull()?.emoji?.ifBlank { null }?.let { Sticker(it, 56.dp) } ?: AppIcon(AppIcons.BOOKS, size = 52.dp)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(l.title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -353,7 +353,7 @@ fun LessonScreen(vm: AppViewModel, id: String) {
                             .clickable { g.speaker.speak(w.en, SpeechText.Lang.EN) }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(w.emoji.ifBlank { "🔤" }, fontSize = 28.sp)
+                        if (w.emoji.isNotBlank()) Sticker(w.emoji, 46.dp, seed = w.en.hashCode()) else AppIcon(AppIcons.PENCIL, size = 40.dp)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text("${w.en}  ${w.tr}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
