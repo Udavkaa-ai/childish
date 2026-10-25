@@ -132,7 +132,25 @@ class MeshTest {
             assertEquals(listOf("4"), snap.marks.map { it.value })
             assertEquals("4.00", DiaryInsights.englishAverage(snap), "средние считаются сами")
             assertTrue(snap.problems.any { it.startsWith("расписание") }, snap.problems.toString())
+            // Расписание по дням тоже отказало — уроков нет, но остальное есть.
+            assertTrue(snap.lessons.isEmpty())
         }
+    }
+
+    @Test
+    fun parsesDaySchedule() {
+        val c = MeshClient("t", defaultHttpClient())
+        val body = """{"summary":"x","activities":[
+            {"type":"LESSON","begin_time":"09:30","end_time":"10:15","room_number":"12",
+             "lesson":{"subject_name":"Английский язык","topic":"My family","homework":{"descriptions":["стр. 45"]},"marks":[{"value":"5"}]}},
+            {"type":"BREAK","begin_time":"10:15"},
+            {"type":"LESSON","begin_time":"08:30","lesson":{"subject_name":"Математика","homework":"№ 5"}}]}"""
+        val l = c.parseDaySchedule(body, "2026-10-26")
+        assertEquals(listOf("Математика", "Английский язык"), l.map { it.subject })
+        assertEquals("09:30", l[1].time); assertEquals("2026-10-26", l[1].date)
+        assertEquals(listOf("стр. 45"), l[1].homework); assertEquals(listOf("5"), l[1].marks)
+        assertEquals("My family", l[1].theme); assertEquals(listOf("№ 5"), l[0].homework)
+        assertTrue(c.parseDaySchedule("не json", "2026-10-26").isEmpty())
     }
 
     @Test

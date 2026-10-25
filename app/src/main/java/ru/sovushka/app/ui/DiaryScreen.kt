@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -165,6 +166,25 @@ fun DiaryScreen(vm: AppViewModel) {
                                 }
                                 if (manualToken.isNotBlank() && !MeshClient.looksLikeToken(manualToken)) {
                                     Text("Это не похоже на ключ входа: нужна длинная строка из трёх частей через точку.", color = Palette.Bad, fontSize = 14.sp)
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        CardBox {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("📱 Подключение с телефона", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "1. Нажмите кнопку ниже — код закладки скопируется.\n" +
+                                        "2. В Chrome войдите на school.mos.ru. Нажмите ⋮ → ☆, затем «Изменить»: название «МЭШ токен», " +
+                                        "в поле адреса вставьте скопированный код.\n" +
+                                        "3. На странице school.mos.ru наберите в адресной строке «МЭШ токен» и нажмите на закладку в подсказках — ключ скопируется.\n" +
+                                        "4. Вернитесь сюда и нажмите «Вставить из буфера».\n" +
+                                        "Закладку нужно создать один раз — потом ключ обновляется за минуту.",
+                                    fontSize = 15.sp,
+                                )
+                                PillButton("📋 Скопировать код закладки", brush = Palette.pinkish) {
+                                    clipboard.setText(AnnotatedString(TOKEN_BOOKMARKLET))
                                 }
                             }
                         }
@@ -406,6 +426,13 @@ fun MeshLoginScreen(vm: AppViewModel) {
 
 /** Сразу на вход через mos.ru (СУДИР); главная school.mos.ru — запасной вариант. */
 private val LOGIN_URLS = listOf("https://school.mos.ru/v3/auth/sudir/login", MeshClient.LOGIN_URL)
+
+/** Закладка для Chrome: копирует aupd_token со страницы school.mos.ru в буфер обмена. */
+private const val TOKEN_BOOKMARKLET =
+    "javascript:(function(){var m=document.cookie.match(/aupd_token=([^;]+)/);var t=m?m[1]:(localStorage.getItem('aupd_token')||'');" +
+        "if(!t){alert('Ключ не найден: сначала войдите в дневник на school.mos.ru');return;}" +
+        "navigator.clipboard.writeText(t).then(function(){alert('Ключ МЭШ скопирован. Вставьте его в приложение.')}," +
+        "function(){prompt('Скопируйте ключ:',t)});})()"
 
 private const val FIND_TOKEN_JS = """(function(){try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);var v=localStorage.getItem(k)||'';if(/token/i.test(k)&&/^eyJ[\w-]+\.[\w-]+\.[\w-]+$/.test(v))return v;}}catch(e){}return '';})()"""
 

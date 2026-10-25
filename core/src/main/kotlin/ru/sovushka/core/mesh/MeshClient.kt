@@ -4,6 +4,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -208,7 +212,14 @@ class MeshClient(
                 )))
             }
         }
-        val lessons = events?.response.orEmpty()
+        // Третий вариант — расписание по дням из мобильного приложения (ответ разбираем гибко).
+        val daySchedule: List<DiaryLesson>? = if (events != null) null else part("расписание по дням") {
+            (0L..6L).flatMap { d ->
+                val date = today.plusDays(d).toString()
+                parseDaySchedule(get(request("$school/api/family/mobile/v1/schedule", mapOf("student_id" to student.id.toString(), "date" to date), h)), date)
+            }
+        }
+        val lessons = daySchedule ?: events?.response.orEmpty()
             .filter { !it.subject_name.isNullOrBlank() && !it.start_at.isNullOrBlank() }
             .map {
                 DiaryLesson(
@@ -264,7 +275,7 @@ class MeshClient(
         }
 
         // Совсем ничего не получили — значит, ключ не подходит.
-        if (events == null && mobileMarks == null && averages == null && homework == null) {
+        if (events == null && daySchedule == null && mobileMarks == null && averages == null && homework == null) {
             throw MeshAuthException(problems.joinToString("; ").ifBlank { "нет данных" })
         }
 
@@ -278,6 +289,45 @@ class MeshClient(
             homework = homework.orEmpty(),
             problems = problems,
         )
+    }
+
+    /**
+     * Разбор расписания на день (/api/family/mobile/v1/schedule). Формат знаем приблизительно,
+     * поэтому ищем уроки в «activities» или любом списке объектов, где есть название предмета.
+     */
+    internal fun parseDaySchedule(body: String, date: String): List<DiaryLesson> {
+        val root = runCatching { json.parseToJsonElement(body) }.getOrNull() ?: return emptyList()
+        fun JsonElement?.obj() = this as? JsonObject
+        fun JsonElement?.str(): String? = (this as? JsonPrimitive)?.takeIf { it.isString || it.content.isNotBlank() }?.content?.takeIf { it != "null" }
+        val items = (root.obj()?.get("activities") as? JsonArray)
+            ?: (root as? JsonArray)
+            ?: (root.obj()?.values?.firstOrNull { it is JsonArray } as? JsonArray)
+            ?: return emptyList()
+        return items.mapNotNull { el ->
+            val o = el.obj() ?: return@mapNotNull null
+            val lesson = o["lesson"].obj() ?: o
+            val subject = lesson["subject_name"].str() ?: o["subject_name"].str() ?: return@mapNotNull null
+            val begin = o["begin_time"].str() ?: lesson["begin_time"].str() ?: ""
+            val end = o["end_time"].str() ?: lesson["end_time"].str() ?: ""
+            val hw = lesson["homework"]
+            val homework = when (hw) {
+                is JsonPrimitive -> listOfNotNull(hw.str())
+                is JsonObject -> (hw["descriptions"] as? JsonArray)?.mapNotNull { it.str() } ?: listOfNotNull(hw["description"].str())
+                is JsonArray -> hw.mapNotNull { it.str() ?: it.obj()?.get("description").str() }
+                else -> emptyList()
+            }.filter { it.isNotBlank() }
+            val marks = (lesson["marks"] as? JsonArray)?.mapNotNull { it.obj()?.get("value").str() ?: it.str() }.orEmpty()
+            DiaryLesson(
+                start = if (begin.length >= 5) "${date}T${begin.take(5)}:00" else date + "T00:00:00",
+                end = if (end.length >= 5) "${date}T${end.take(5)}:00" else "",
+                subject = subject,
+                room = (o["room_number"].str() ?: lesson["room_number"].str()).orEmpty(),
+                theme = (lesson["topic"].str() ?: lesson["lesson_topic"].str() ?: lesson["theme"].str()).orEmpty(),
+                homework = homework,
+                marks = marks,
+                cancelled = o["cancelled"].str() == "true" || lesson["is_cancelled"].str() == "true",
+            )
+        }.sortedBy { it.start }
     }
 
     /** Оценки из расписания (в веб-режиме мобильный список оценок может быть недоступен). */
