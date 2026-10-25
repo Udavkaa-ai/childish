@@ -44,8 +44,8 @@ data class Prefs(
     val meshStudentId: Long = -1,
     /** Сколько говорит Ника со старшей: всё, только задания, молчит. */
     val talk: String = TALK_FULL,
-    /** Ника объёмная (3D, как на иконке) или рисованная. */
-    val nika3d: Boolean = true,
+    /** Ника — неподвижные 3D-картинки (как на иконке) вместо живой объёмной. */
+    val nikaStatic: Boolean = false,
     /** Видео-заставку уже показывали (дальше — только по кнопке ▶). */
     val introSeen: Boolean = false,
     /** Меняется при смене фото детей — чтобы экраны перечитали аватарки. */
@@ -105,7 +105,7 @@ class Settings(context: Context) {
             meshStudentId = sp.getLong("meshStudentId", d.meshStudentId),
             avatarStamp = sp.getLong("avatarStamp", d.avatarStamp),
             talk = sp.getString("talk", d.talk)!!,
-            nika3d = sp.getBoolean("nika3d", d.nika3d),
+            nikaStatic = sp.getBoolean("nika_static", d.nikaStatic),
             introSeen = sp.getBoolean("introSeen", d.introSeen),
         )
     }
@@ -129,7 +129,7 @@ class Settings(context: Context) {
             .putString("meshToken", p.meshToken).putLong("meshStudentId", p.meshStudentId)
             .putLong("avatarStamp", p.avatarStamp)
             .putString("talk", p.talk)
-            .putBoolean("nika3d", p.nika3d)
+            .putBoolean("nika_static", p.nikaStatic)
             .putBoolean("introSeen", p.introSeen)
             .apply()
         _prefs.value = p

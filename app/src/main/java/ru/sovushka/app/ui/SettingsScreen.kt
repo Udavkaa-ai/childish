@@ -188,8 +188,8 @@ fun SettingsScreen(vm: AppViewModel) {
                 }
 
                 Section("👧 Какая Ника") {
-                    Radio("Объёмная 3D — как на иконке", p.nika3d) { set { it.copy(nika3d = true) } }
-                    Radio("Рисованная — как в комиксах", !p.nika3d) { set { it.copy(nika3d = false) } }
+                    Radio("Живая объёмная — двигается", !p.nikaStatic) { set { it.copy(nikaStatic = false) } }
+                    Radio("3D-картинки — как на иконке", p.nikaStatic) { set { it.copy(nikaStatic = true) } }
                 }
 
                 Section("💬 Сколько говорит Ника (со старшей)") {

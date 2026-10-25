@@ -23,13 +23,15 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
@@ -258,6 +260,9 @@ fun NikaVector(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean =
         val armsUp = abs(ls) > RAISED || abs(rs) > RAISED
 
         scale(k, k, pivot = Offset.Zero) {
+            // Тень на полу: в прыжке становится меньше и бледнее.
+            val lift = (-jump / 30f).coerceIn(0f, 0.6f)
+            glow(Color.Black, Offset(100f + dx, 304f), 46f * (1f - lift * 0.5f), 7f * (1f - lift * 0.5f), 0.28f * (1f - lift))
             rotate(bodyRot, pivot = Offset(100f, 305f)) {
                 translate(dx, jump) {
                     // Ноги: бедро вращается у пояса, голень — в колене (колени расходятся в стороны).
@@ -266,31 +271,33 @@ fun NikaVector(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean =
 
                     translate(0f, drop) {
                         // Волосы за головой и длинные пряди по бокам — пряди покачиваются.
-                        fillStroke(BACK_HAIR, HAIR, HAIR_LINE)
+                        drawPath(BACK_HAIR, Vol.backHair)
                         rotate(sway, pivot = Offset(46f, 118f)) {
-                            fillStroke(LOCK_L, HAIR, HAIR_LINE)
-                            drawPath(STRANDS_L, STRAND, style = Stroke(1f, cap = StrokeCap.Round))
+                            drawPath(LOCK_L, Vol.lockL)
+                            drawPath(GLOSS_L, Color(0x8C5A80FF), style = Stroke(3f, cap = StrokeCap.Round))
                         }
                         rotate(-sway, pivot = Offset(154f, 118f)) {
-                            fillStroke(LOCK_R, HAIR, HAIR_LINE)
-                            drawPath(STRANDS_R, STRAND, style = Stroke(1f, cap = StrokeCap.Round))
+                            drawPath(LOCK_R, Vol.lockR)
+                            drawPath(GLOSS_R, Color(0x595A80FF), style = Stroke(2.5f, cap = StrokeCap.Round))
                         }
 
                         // Опущенные руки — за туловищем, поднятые — поверх головы (иначе голова их закрывает).
                         if (abs(ls) <= RAISED) arm(look, left = true, ls + breath * 1.5f, le, lw)
                         if (abs(rs) <= RAISED) arm(look, left = false, rs - breath * 1.5f, re, rw)
 
-                        drawRect(SKIN, Offset(96f, 170f), Size(8f, 18f))
+                        drawRect(Vol.neck, Offset(95.5f, 170f), Size(9f, 18f))
                         translate(0f, breath * 0.8f) { torso(look, text) }
 
                         // Голова: наклон, лёгкое покачивание и кивки в такт речи.
                         translate(0f, breath * 1.2f + mouth.value * 1.5f) {
                             rotate(tilt + breath * 1.2f, pivot = Offset(100f, 172f)) {
-                                drawCircle(SKIN, 70f, Offset(100f, 105f))
-                                drawCircle(OUTLINE, 70f, Offset(100f, 105f), style = thin)
-                                val blushA = if (mood == NikaMood.HAPPY || mood == NikaMood.DANCE || quirk == Quirk.WINK) 0.65f else 0.45f
-                                drawOval(BLUSH.copy(alpha = blushA), Offset(49f, 132.5f), Size(24f, 9f))
-                                drawOval(BLUSH.copy(alpha = blushA), Offset(127f, 132.5f), Size(24f, 9f))
+                                // Объём лица: свет сверху-слева, блик на лбу, тень к подбородку.
+                                drawCircle(Vol.face, 70f, Offset(100f, 105f))
+                                glow(Color.White, Offset(88f, 82f), 26f, 14f, 0.55f)
+                                drawCircle(Vol.chin, 70f, Offset(100f, 105f))
+                                val blushA = if (mood == NikaMood.HAPPY || mood == NikaMood.DANCE || quirk == Quirk.WINK) 0.75f else 0.6f
+                                glow(BLUSH, Offset(60f, 137f), 17f, 9f, blushA)
+                                glow(BLUSH, Offset(140f, 137f), 17f, 9f, blushA)
 
                                 if (mood == NikaMood.HAPPY || mood == NikaMood.DANCE) {
                                     happyEye(74f); happyEye(126f)
@@ -301,15 +308,15 @@ fun NikaVector(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean =
                                 mouth(mood, mouth.value)
                                 if (look.glasses) glasses()
 
-                                fillStroke(HAIR_CAP, HAIR, HAIR_LINE)
-                                drawPath(SHINE_1, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
-                                drawPath(SHINE_2, SHINE, style = Stroke(3f, cap = StrokeCap.Round))
+                                // Чёлка с глянцевыми бликами.
+                                drawPath(HAIR_CAP, Vol.cap)
+                                drawPath(SHINE_1, Color(0xBF8FA8FF), style = Stroke(5f, cap = StrokeCap.Round))
+                                drawPath(SHINE_2, Color(0x808FA8FF), style = Stroke(4f, cap = StrokeCap.Round))
+                                drawPath(SHINE_3, Color.White.copy(alpha = 0.55f), style = Stroke(1.8f, cap = StrokeCap.Round))
                                 rotate(-18f, pivot = Offset(58f, 64f)) {
                                     scale(1.3f, pivot = Offset(58f, 64f)) {
-                                        drawPath(BOW, look.accent)
-                                        drawPath(BOW, look.accentDark, style = Stroke(0.9f, join = StrokeJoin.Round))
-                                        drawCircle(look.bowKnot, 3.4f, Offset(58f, 64f))
-                                        drawCircle(look.accentDark, 3.4f, Offset(58f, 64f), style = Stroke(0.9f))
+                                        drawPath(BOW, look.bow)
+                                        drawCircle(sphere(look.bowKnot, Offset(58f, 64f), 3.4f), 3.4f, Offset(58f, 64f))
                                     }
                                 }
 
@@ -332,11 +339,77 @@ fun NikaVector(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean =
 /** Поза руки: углы в плече, локте и запястье. */
 private data class Pose(val shoulder: Float, val elbow: Float, val wrist: Float)
 
-private val thin = Stroke(1.2f, join = StrokeJoin.Round)
+/** Светотень в духе 3D: градиенты вместо заливки и мягкие блики. Кисти считаются один раз. */
+private fun shade(c: Color, f: Float): Color = if (f >= 0f) lerp(c, Color.White, f) else lerp(c, Color.Black, -f)
 
-private fun DrawScope.fillStroke(path: Path, fill: Color, line: Color) {
-    drawPath(path, fill)
-    drawPath(path, line, style = thin)
+/** «Цилиндр»: края темнее, ближе к левому краю — полоса света. */
+private fun cylinder(c: Color, b: Rect): Brush = Brush.horizontalGradient(
+    0f to shade(c, -0.28f), 0.3f to shade(c, 0.16f), 0.6f to c, 1f to shade(c, -0.34f),
+    startX = b.left, endX = b.right,
+)
+
+/** Сверху светлее, снизу темнее. */
+private fun topLit(c: Color, b: Rect): Brush = Brush.verticalGradient(
+    0f to shade(c, 0.35f), 0.5f to c, 1f to shade(c, -0.25f), startY = b.top, endY = b.bottom,
+)
+
+/** Шарик: блик сверху-слева. */
+private fun sphere(c: Color, center: Offset, r: Float): Brush = Brush.radialGradient(
+    0f to shade(c, 0.55f), 0.5f to c, 1f to shade(c, -0.35f),
+    center = Offset(center.x - r * 0.3f, center.y - r * 0.4f), radius = r * 1.5f,
+)
+
+private fun ball(b: Rect, vararg stops: Pair<Float, Color>): Brush = Brush.radialGradient(
+    *stops, center = Offset(b.left + b.width * 0.35f, b.top + b.height * 0.3f), radius = maxOf(b.width, b.height) * 0.8f,
+)
+
+/** Мягкое пятно (блик, тень, румянец) в форме эллипса. */
+private fun DrawScope.glow(c: Color, center: Offset, rx: Float, ry: Float, alpha: Float) {
+    scale(1f, ry / rx, pivot = center) {
+        drawCircle(Brush.radialGradient(listOf(c.copy(alpha = alpha), c.copy(alpha = 0f)), center, rx), rx, center)
+    }
+}
+
+/** Кисти, которые не зависят от наряда. */
+private object Vol {
+    private fun hair(p: Path) = p.getBounds().let { b ->
+        Brush.linearGradient(
+            0f to Color(0xFF2F55E6), 0.45f to HAIR, 1f to Color(0xFF0A176A),
+            start = b.topLeft, end = Offset(b.left + b.width * 0.3f, b.bottom),
+        )
+    }
+    val backHair = hair(BACK_HAIR)
+    val lockL = hair(LOCK_L)
+    val lockR = hair(LOCK_R)
+    val cap = Brush.radialGradient(
+        0f to Color(0xFF3B63F2), 0.55f to Color(0xFF1A38B8), 1f to Color(0xFF0C1C78),
+        center = Offset(79f, 50f), radius = 110f,
+    )
+    val face = Brush.radialGradient(
+        0f to Color(0xFFFFE9D4), 0.35f to Color(0xFFFCD3AE), 0.7f to Color(0xFFF2B98E),
+        0.92f to Color(0xFFDE9A6E), 1f to Color(0xFFC9845B),
+        center = Offset(86f, 80f), radius = 105f,
+    )
+    val chin = Brush.radialGradient(
+        0f to Color.Transparent, 0.7f to Color.Transparent, 1f to Color(0x599C5E3E),
+        center = Offset(100f, 94f), radius = 81f,
+    )
+    val neck = Brush.verticalGradient(
+        0f to Color(0xFFB9785A), 0.5f to Color(0xFFE3A57E), 1f to Color(0xFFF0B990), startY = 170f, endY = 188f,
+    )
+    private fun hand(p: Path) = ball(p.getBounds(), 0f to Color(0xFFFFE1C6), 0.7f to Color(0xFFF2BC94), 1f to Color(0xFFD9976C))
+    val handL = hand(HAND_L)
+    val handR = hand(HAND_R)
+    private fun shoe(x: Float) = Brush.radialGradient(
+        0f to Color(0xFF5A5A66), 0.5f to SHOES, 1f to Color(0xFF0B0B0F), center = Offset(x - 3.5f, 299.5f), radius = 13f,
+    )
+    val shoeL = shoe(86f)
+    val shoeR = shoe(114f)
+    val collar = Brush.verticalGradient(
+        0f to Color.White, 0.6f to Color(0xFFF2F4FA), 1f to Color(0xFFC9D0E2), startY = 182f, endY = 198f,
+    )
+    val star = ball(POCKET_STAR.getBounds(), 0f to Color(0xFFFFF3B0), 0.6f to STAR_GOLD, 1f to Color(0xFFE0A800))
+    val upperLip = Brush.verticalGradient(listOf(Color(0xFFFF9EC2), Color(0xFFD2457C)), startY = 139f, endY = 148f)
 }
 
 /** Рука из двух частей: плечо вращается у плечевого сустава, предплечье — в локте, кисть — в запястье. */
@@ -346,12 +419,12 @@ private fun DrawScope.arm(look: Look, left: Boolean, shoulder: Float, elbow: Flo
     val w = if (left) Offset(68f, 251f) else Offset(132f, 251f)
     rotate(shoulder, pivot = s) {
         rotate(elbow, pivot = e) {
-            rotate(wrist, pivot = w) { fillStroke(if (left) HAND_L else HAND_R, SKIN, look.line) }
-            fillStroke(if (left) FORE_L else FORE_R, look.top, look.line)
-            trim(look, if (left) CUFF_L else CUFF_R, look.cuff)
+            rotate(wrist, pivot = w) { drawPath(if (left) HAND_L else HAND_R, if (left) Vol.handL else Vol.handR) }
+            drawPath(if (left) FORE_L else FORE_R, if (left) look.foreL else look.foreR)
+            drawPath(if (left) CUFF_L else CUFF_R, if (left) look.cuffL else look.cuffR)
         }
-        fillStroke(if (left) UPPER_L else UPPER_R, look.top, look.line)
-        drawCircle(look.top, 5.6f, e) // локоть закрывает стык плеча и предплечья
+        drawPath(if (left) UPPER_L else UPPER_R, if (left) look.upperL else look.upperR)
+        drawCircle(sphere(look.top, e, 5.6f), 5.6f, e) // локоть закрывает стык плеча и предплечья
     }
 }
 
@@ -363,48 +436,31 @@ private fun DrawScope.leg(look: Look, left: Boolean, bend: Float, drop: Float) {
     translate(0f, drop) {
         rotate(if (left) a else -a, pivot = hip) {
             rotate(if (left) -2 * a else 2 * a, pivot = knee) {
-                drawOval(SHOES, Offset(if (left) 74f else 102f, 297f), Size(24f, 10f))
-                fillStroke(if (left) SHIN_L else SHIN_R, look.suit, look.line)
-                trim(look, if (left) TRIM_L else TRIM_R, look.trim)
-                drawOval(Color.White.copy(alpha = 0.6f), Offset(if (left) 77.5f else 105.5f, 298.7f), Size(7f, 2.6f))
+                drawOval(if (left) Vol.shoeL else Vol.shoeR, Offset(if (left) 73.5f else 101.5f, 296.5f), Size(25f, 11f))
+                drawPath(if (left) SHIN_L else SHIN_R, if (left) look.shinL else look.shinR)
+                drawPath(if (left) TRIM_L else TRIM_R, if (left) look.trimL else look.trimR)
+                drawOval(Color.White.copy(alpha = 0.55f), Offset(if (left) 78f else 106f, 298.5f), Size(8f, 2.6f))
             }
-            fillStroke(if (left) THIGH_L else THIGH_R, look.suit, look.line)
-            if (left) {
-                drawPath(POCKET_STAR, STAR_GOLD)
-                drawPath(POCKET_STAR, Color(0xFFC58A00), style = Stroke(0.5f))
-            }
+            drawPath(if (left) THIGH_L else THIGH_R, if (left) look.thighL else look.thighR)
+            if (left) drawPath(POCKET_STAR, Vol.star)
         }
     }
 }
 
-/** Отделка: манжеты и полоски внизу брюк. */
-private fun DrawScope.trim(look: Look, path: Path, color: Color) {
-    drawPath(path, color)
-    drawPath(path, look.line, style = Stroke(0.8f))
-}
-
 private fun DrawScope.torso(look: Look, text: TextMeasurer) {
-    drawPath(TORSO, look.gradient)
-    drawPath(TORSO, look.line, style = thin)
+    drawPath(TORSO, look.body)
+    glow(Color(0xFF05183A), Offset(100f, 187f), 22f, 9f, 0.35f) // тень от головы на груди
     if (look.tie) {
         // Строгий пиджак: лацканы, галстук и две золотые пуговицы.
-        drawPath(LAPELS, look.top)
-        drawPath(LAPELS, look.line, style = Stroke(0.8f))
-        drawPath(TIE, look.accent)
-        drawPath(TIE, look.accentDark, style = Stroke(0.7f))
+        drawPath(LAPELS, look.lapels)
+        drawPath(TIE, look.tieBrush)
     }
-    drawPath(COLLAR, Color.White)
-    drawPath(COLLAR, Color(0xFF9AA7C4), style = Stroke(0.8f))
-    for (y in look.buttonsY) {
-        drawCircle(look.buttons, 1.9f, Offset(100f, y))
-        if (look.tie) drawCircle(look.accentDark, 1.9f, Offset(100f, y), style = Stroke(0.5f))
-    }
-    drawPath(BELT, look.belt)
-    drawPath(BELT, look.accentDark, style = Stroke(0.8f))
-    drawPath(BUCKLE, look.buckle)
-    drawPath(BUCKLE, look.accentDark, style = Stroke(0.7f))
+    drawPath(COLLAR, Vol.collar)
+    for (y in look.buttonsY) drawCircle(sphere(look.buttons, Offset(100f, y), 2f), 2f, Offset(100f, y))
+    drawPath(BELT, look.beltBrush)
+    drawPath(BUCKLE, look.buckleBrush)
     drawRoundRect(Color.White, Offset(103f, 195f), Size(20f, 9f), CornerRadius(1.5f))
-    drawRoundRect(Color(0xFF333333), Offset(103f, 195f), Size(20f, 9f), CornerRadius(1.5f), style = Stroke(0.7f))
+    drawRoundRect(Color(0xFF333333), Offset(103f, 195f), Size(20f, 9f), CornerRadius(1.5f), style = Stroke(0.6f))
     val label = text.measure("НИКА", TextStyle(fontSize = 5.4f.toSp(), fontWeight = FontWeight.Bold, color = Color(0xFF222222)))
     drawText(label, topLeft = Offset(113f - label.size.width / 2f, 199.5f - label.size.height / 2f))
 }
@@ -417,14 +473,25 @@ private fun DrawScope.eye(cx: Float, side: Float, closed: Float, gazeX: Float, g
             moveTo(cx + side * 15f, 101f); lineTo(cx + side * 27f, 93f); lineTo(cx + side * 11f, 97f); close()
         }
         drawPath(lash, Color(0xFF111111))
-        drawOval(Color.White, Offset(cx - 17f, 94f), Size(34f, 36f))
-        drawOval(Color(0xFF111111), Offset(cx - 17f, 94f), Size(34f, 36f), style = Stroke(1.6f))
+        val white = Brush.radialGradient(
+            0f to Color.White, 0.75f to Color(0xFFF3F5FB), 1f to Color(0xFFC8CEDD),
+            center = Offset(cx - 1.7f, 106.6f), radius = 23f,
+        )
+        drawOval(white, Offset(cx - 17f, 94f), Size(34f, 36f))
+        drawOval(Color(0xFF111111), Offset(cx - 17f, 94f), Size(34f, 36f), style = Stroke(2f))
         val ix = cx - side + gazeX // зрачки чуть ближе к носу
         val iy = 114f + gazeY
         val r = if (size > 1.05f) 10.5f else 12.5f
-        drawCircle(Color(0xFF2B2B2B), r, Offset(ix, iy))
-        drawCircle(Color.White, 4f, Offset(ix - 5f, iy - 6f))
-        drawCircle(Color.White, 2f, Offset(ix + 5f, iy + 5f))
+        val iris = Brush.radialGradient(
+            0f to Color(0xFF4A4A55), 0.6f to Color(0xFF1E1E24), 1f to Color(0xFF050507),
+            center = Offset(ix, iy + r * 0.3f), radius = r * 1.2f,
+        )
+        drawCircle(iris, r, Offset(ix, iy))
+        // Отражение снизу, большой блик сверху и маленький — снизу.
+        val rim = Path().apply { moveTo(ix - 8f, iy + 7f); quadraticBezierTo(ix - 1f, iy + 12.5f, ix + 6f, iy + 9f) }
+        drawPath(rim, Color(0x737A7FA0), style = Stroke(1.6f, cap = StrokeCap.Round))
+        drawOval(Color.White, Offset(ix - 9.1f, iy - 10.7f), Size(9.2f, 8.4f))
+        drawCircle(Color.White.copy(alpha = 0.9f), 2f, Offset(ix + 5f, iy + 5.5f))
     }
 }
 
@@ -449,26 +516,70 @@ private fun DrawScope.happyEye(cx: Float) {
     drawPath(p, Color(0xFF111111), style = Stroke(3.2f, cap = StrokeCap.Round))
 }
 
+/** Верхняя губа «галочкой» с двумя горбиками; основание лежит на линии рта y. */
+private fun upperLip(y: Float) = Path().apply {
+    moveTo(92f, y); lineTo(95.4f, y - 5.2f); quadraticBezierTo(97.4f, y - 6.6f, 99f, y - 4.4f)
+    lineTo(100f, y - 3.6f); lineTo(101f, y - 4.4f); quadraticBezierTo(102.6f, y - 6.6f, 104.6f, y - 5.2f)
+    lineTo(108f, y); quadraticBezierTo(100f, y + 1.1f, 92f, y); close()
+}
+
+/** Нижняя губа — полукруг под линией рта; top — её верхний край. */
+private fun DrawScope.lowerLip(top: Float, half: Float, depth: Float) {
+    val p = Path().apply {
+        moveTo(100f - half, top); quadraticBezierTo(100f, top + 1.6f, 100f + half, top)
+        cubicTo(100f + half - 0.5f, top + depth * 0.7f, 103.5f, top + depth, 100f, top + depth)
+        cubicTo(96.5f, top + depth, 100f - half + 0.5f, top + depth * 0.7f, 100f - half, top); close()
+    }
+    val lip = Brush.radialGradient(
+        0f to Color(0xFFFFB8D3), 0.6f to Color(0xFFEC6A9E), 1f to Color(0xFFC23E74),
+        center = Offset(100f - half * 0.2f, top + depth * 0.25f), radius = half * 1.5f,
+    )
+    drawPath(p, lip)
+    drawOval(Color.White.copy(alpha = 0.72f), Offset(95.5f, top + depth * 0.36f), Size(4.2f, 1.9f))
+}
+
+/**
+ * Рот по рисунку Вероники: закрытый — линия рта, верхняя губа «галочкой» и нижняя полукругом;
+ * открытый — широкий рот, верхняя губа сидит на его верхнем краю, нижняя — под нижним.
+ */
 private fun DrawScope.mouth(mood: NikaMood, open: Float) {
     val line = Color(0xFF3B2F2A)
+    val wide = when {
+        mood == NikaMood.HAPPY || mood == NikaMood.DANCE -> maxOf(open, 0.55f)
+        mood == NikaMood.SURPRISED -> maxOf(open, 0.3f)
+        else -> open
+    }
     when {
-        mood == NikaMood.SAD -> {
-            val p = Path().apply { moveTo(90f, 150f); cubicTo(95f, 143f, 105f, 143f, 110f, 150f) }
-            drawPath(p, line, style = Stroke(1.6f, cap = StrokeCap.Round))
+        mood == NikaMood.SAD && open < 0.05f -> {
+            val p = Path().apply { moveTo(88f, 150f); cubicTo(94f, 143f, 106f, 143f, 112f, 150f) }
+            drawPath(p, line, style = Stroke(1.4f, cap = StrokeCap.Round))
+            drawPath(upperLip(146.6f), Vol.upperLip)
+            lowerLip(146.9f, 7f, 6f)
         }
-        mood == NikaMood.SURPRISED && open < 0.05f -> {
-            drawOval(Color(0xFF8E2547), Offset(95f, 141f), Size(10f, 12f))
-        }
-        open > 0.05f -> {
-            val h = 3f + open * 10f
-            drawOval(Color(0xFF8E2547), Offset(92f, 146f - h / 2f), Size(16f, h))
-            drawOval(LIPS, Offset(92f, 146f - h / 2f - 1.5f), Size(16f, 3.5f))
+        wide > 0.05f -> {
+            val bot = 150f + wide * 10f
+            val m = Path().apply {
+                moveTo(83f, 143.5f); quadraticBezierTo(100f, 147.5f, 117f, 143.5f)
+                cubicTo(113f, bot - 5f, 106f, bot, 100f, bot)
+                cubicTo(94f, bot, 87f, bot - 5f, 83f, 143.5f); close()
+            }
+            drawPath(m, Brush.verticalGradient(listOf(Color(0xFF3E0C1E), Color(0xFF7A2140)), startY = 143.5f, endY = bot))
+            clipPath(m) {
+                val tw = 7f + wide * 3f
+                val th = 2.5f + wide * 2.5f
+                drawOval(Color(0xFFE87A9A), Offset(100f - tw, bot + 0.5f - th), Size(tw * 2, th * 2))
+            }
+            val edge = Path().apply { moveTo(83f, 143.5f); quadraticBezierTo(100f, 147.5f, 117f, 143.5f) }
+            drawPath(edge, line, style = Stroke(1.3f, cap = StrokeCap.Round))
+            drawPath(upperLip(145.6f), Vol.upperLip)
+            lowerLip(bot - 0.8f, 6.5f, 6.3f)
         }
         else -> {
-            val smile = if (mood == NikaMood.HAPPY || mood == NikaMood.DANCE) SMILE_BIG else SMILE
-            drawPath(smile, line, style = Stroke(1.3f, cap = StrokeCap.Round))
-            drawPath(LIPS_PATH, LIPS)
-            drawPath(LIPS_PATH, Color(0xFF9C2F5E), style = Stroke(0.8f))
+            val p = Path().apply { moveTo(84f, 145f); quadraticBezierTo(100f, 148.6f, 116f, 144.5f) }
+            drawPath(p, line, style = Stroke(1.3f, cap = StrokeCap.Round))
+            drawPath(upperLip(146.6f), Vol.upperLip)
+            lowerLip(146.9f, 7.5f, 7.7f)
+            drawOval(Color.White.copy(alpha = 0.6f), Offset(95.3f, 141.9f), Size(2.4f, 1.4f))
         }
     }
 }
@@ -497,42 +608,51 @@ private fun DrawScope.notes(t: Float) {
 private fun svg(d: String): Path = PathParser().parsePathString(d).toPath()
 
 private val HAIR = Color(0xFF1631A8)
-private val HAIR_LINE = Color(0xFF0E1F6E)
-private val STRAND = Color(0x990E1F6E)
-private val SHINE = Color(0xB33D63E0)
-private val SKIN = Color(0xFFF7C8A0)
-private val OUTLINE = Color(0xFF3B2F2A)
 private val BLUSH = Color(0xFFF06292)
 private val SUIT = Color(0xFF1E5FAF)
 private val SUIT_TOP = Color(0xFF2368B5)
-private val SUIT_LINE = Color(0xFF173F75)
 private val SHOES = Color(0xFF222222)
-private val LIPS = Color(0xFFE86A9A)
 private val PINK = Color(0xFFEC5F9C)
 private val PINK_LIGHT = Color(0xFFF48FB1)
-private val PINK_DARK = Color(0xFFA8326A)
 private val STAR_GOLD = Color(0xFFFFD54F)
-private val SUIT_GRADIENT = Brush.verticalGradient(listOf(Color(0xFF3584D6), Color(0xFF2160AE)), startY = 184f, endY = 240f)
 
-/** Цвета наряда. */
+/** Цвета наряда и объёмные кисти для его деталей. */
 private class Look(
-    val suit: Color, val top: Color, val line: Color, val gradient: Brush,
-    val accent: Color, val accentDark: Color, val bowKnot: Color,
+    val suit: Color, val top: Color, val bodyColor: Color,
+    val accent: Color, val bowKnot: Color,
     val cuff: Color, val trim: Color, val buttons: Color, val buttonsY: List<Float>,
     val belt: Color, val buckle: Color, val glasses: Boolean, val tie: Boolean,
-)
+) {
+    val thighL by lazy { cylinder(suit, THIGH_L.getBounds()) }
+    val thighR by lazy { cylinder(suit, THIGH_R.getBounds()) }
+    val shinL by lazy { cylinder(suit, SHIN_L.getBounds()) }
+    val shinR by lazy { cylinder(suit, SHIN_R.getBounds()) }
+    val trimL by lazy { cylinder(trim, TRIM_L.getBounds()) }
+    val trimR by lazy { cylinder(trim, TRIM_R.getBounds()) }
+    val upperL by lazy { cylinder(top, UPPER_L.getBounds()) }
+    val upperR by lazy { cylinder(top, UPPER_R.getBounds()) }
+    val foreL by lazy { cylinder(top, FORE_L.getBounds()) }
+    val foreR by lazy { cylinder(top, FORE_R.getBounds()) }
+    val cuffL by lazy { cylinder(cuff, CUFF_L.getBounds()) }
+    val cuffR by lazy { cylinder(cuff, CUFF_R.getBounds()) }
+    val body by lazy { cylinder(bodyColor, TORSO.getBounds()) }
+    val lapels by lazy { cylinder(top, LAPELS.getBounds()) }
+    val tieBrush by lazy { topLit(accent, TIE.getBounds()) }
+    val bow by lazy { topLit(accent, BOW.getBounds()) }
+    val beltBrush by lazy { topLit(belt, BELT.getBounds()) }
+    val buckleBrush by lazy { ball(BUCKLE.getBounds(), 0f to shade(buckle, 0.6f), 1f to buckle) }
+}
 
 private val CASUAL = Look(
-    SUIT, SUIT_TOP, SUIT_LINE, SUIT_GRADIENT,
-    PINK, PINK_DARK, PINK_LIGHT,
+    SUIT, SUIT_TOP, Color(0xFF2A72C8),
+    PINK, PINK_LIGHT,
     PINK_LIGHT, PINK_LIGHT, PINK, listOf(206f, 215f, 224f),
-    PINK, Color(0xFFFFE3EE), glasses = false, tie = false,
+    PINK, Color(0xFFF6B6CF), glasses = false, tie = false,
 )
 
 private val STRICT = Look(
-    Color(0xFF263552), Color(0xFF2F4166), Color(0xFF141C30),
-    Brush.verticalGradient(listOf(Color(0xFF3C5280), Color(0xFF26365A)), startY = 184f, endY = 240f),
-    Color(0xFFB23A48), Color(0xFF6E1F2A), Color(0xFFD9606E),
+    Color(0xFF263552), Color(0xFF2F4166), Color(0xFF34497A),
+    Color(0xFFB23A48), Color(0xFFD9606E),
     Color(0xFFF4F6FA), Color(0xFF1B253D), Color(0xFFF2C14E), listOf(219f, 227f),
     Color(0xFF1B253D), Color(0xFFF2C14E), glasses = true, tie = true,
 )
@@ -542,8 +662,6 @@ private val LAPELS = svg("M84,185 L98,196 L92,214 L80,198 Z M116,185 L102,196 L1
 
 private val LOCK_L = svg("M40,112 C26,130 20,160 22,190 C23,215 16,235 9,251 Q18,257 26,250 Q33,261 42,252 Q52,259 58,246 C54,230 58,205 60,180 C62,160 64,140 68,128 Z")
 private val LOCK_R = svg("M160,112 C174,130 180,160 178,190 C177,215 184,235 191,251 Q182,257 174,250 Q167,261 158,252 Q148,259 142,246 C146,230 142,205 140,180 C138,160 136,140 132,128 Z")
-private val STRANDS_L = svg("M42,128 C32,160 30,200 22,240 M52,140 C46,175 44,215 40,248")
-private val STRANDS_R = svg("M158,128 C168,160 170,200 178,240 M148,140 C154,175 156,215 160,248")
 private val BACK_HAIR = svg("M30,108 C30,60 60,32 100,32 C140,32 170,60 170,108 L170,142 L30,142 Z")
 private val UPPER_L = svg("M89,192 C88,186 80,184 78,189 L70,219 C72,225 80,226 82,221 Z")
 private val UPPER_R = svg("M111,192 C112,186 120,184 122,189 L130,219 C128,225 120,226 118,221 Z")
@@ -566,8 +684,8 @@ private val COLLAR = svg("M100,186 C94,183 87,182 83,185 C83,192 90,198 98,195 Z
 private val BELT = svg("M76.6,231 L123.4,231 L123.7,237 L76.3,237 Z")
 private val BUCKLE = svg("M100,238 C96,235.5 95,232.5 97.5,231.8 C99,231.4 100,232.6 100,233.2 C100,232.6 101,231.4 102.5,231.8 C105,232.5 104,235.5 100,238 Z")
 private val BOW = svg("M58,64 L47,57 L46,71 Z M58,64 L69,57 L70,71 Z")
-private val SHINE_1 = svg("M48,70 C60,52 78,42 96,38")
-private val SHINE_2 = svg("M128,40 C148,46 164,60 172,80")
-private val SMILE = svg("M86,144 C92,151 108,151 116,142")
-private val SMILE_BIG = svg("M84,141 C92,156 110,156 118,139")
-private val LIPS_PATH = svg("M93,147 C93,143 97,142 99,144 C101,142 105,143 105,147 C105,151 100,153 99,152 C97,153 93,151 93,147 Z")
+private val SHINE_1 = svg("M46,72 C60,52 78,42 96,38")
+private val SHINE_2 = svg("M130,42 C148,48 162,60 170,78")
+private val SHINE_3 = svg("M60,58 C72,47 84,42 92,40")
+private val GLOSS_L = svg("M46,140 C40,170 38,205 32,238")
+private val GLOSS_R = svg("M156,140 C163,172 165,205 170,236")

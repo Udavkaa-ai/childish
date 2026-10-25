@@ -37,14 +37,14 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Ника. По умолчанию — объёмная 3D-Ника (позы нарисованы в OpenArt по иконке приложения),
- * в настройках можно вернуть рисованную векторную. Размеры у обеих одинаковые (200 × 320).
+ * Ника. По умолчанию — живая объёмная (вектор со светотенью, двигается всем телом),
+ * в настройках можно включить неподвижные 3D-картинки из OpenArt. Размеры у обеих одинаковые (200 × 320).
  */
 @Composable
 fun Nika(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood == NikaMood.TALK) {
     val g = LocalContext.current.graph
     val prefs by g.settings.prefs.collectAsState()
-    if (prefs.nika3d) Nika3D(mood, modifier, talking) else NikaVector(mood, modifier, talking)
+    if (prefs.nikaStatic) Nika3D(mood, modifier, talking) else NikaVector(mood, modifier, talking)
 }
 
 /** Картинки поз декодируются один раз на всё приложение. */
