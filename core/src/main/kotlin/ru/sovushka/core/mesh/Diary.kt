@@ -44,6 +44,8 @@ data class DiarySnapshot(
     val marks: List<DiaryMark> = emptyList(),
     val averages: List<SubjectAverage> = emptyList(),
     val homework: List<DiaryHomework> = emptyList(),
+    /** Что не удалось загрузить (остальное загружено). */
+    val problems: List<String> = emptyList(),
 )
 
 /** Выжимка про английский из дневника — для главного экрана и для Совушки. */

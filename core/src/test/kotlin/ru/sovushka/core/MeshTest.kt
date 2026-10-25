@@ -67,7 +67,7 @@ class MeshTest {
                 .first { it.path!!.startsWith("/api/eventcalendar") }
             assertEquals("g-v", events.requestUrl!!.queryParameter("person_ids"))
             assertEquals("parent", events.getHeader("x-mes-role"))
-            assertEquals("777", events.getHeader("profile-id"))
+            assertEquals("familymp", events.getHeader("x-mes-subsystem"))
             assertEquals("Bearer a.b.c", events.getHeader("Authorization"))
         }
     }
@@ -108,6 +108,30 @@ class MeshTest {
             assertEquals("4.00", DiaryInsights.englishAverage(snap))
             assertEquals(listOf("2026-10-20", "2026-10-21", "2026-10-27"), snap.lessons.map { it.date })
             assertEquals(listOf(50), DiaryInsights.englishHomework(snap, "2026-10-25").flatMap { DiaryInsights.pages(it.text) })
+        }
+    }
+
+    @Test
+    fun partialDataWhenScheduleRejected() = runBlocking {
+        val s = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse = when (request.requestUrl!!.encodedPath) {
+                    "/acl/api/users/profile_info" -> MockResponse().setBody("""[{"id":777,"type":"parent"}]""")
+                    "/api/family/mobile/v1/profile" -> MockResponse().setBody("""{"profile":{"id":777},"children":[{"id":12,"first_name":"Вероника","contingent_guid":"g-v"}]}""")
+                    "/api/family/mobile/v1/marks" -> MockResponse().setBody("""{"payload":[{"value":"4","date":"2026-10-20","subject_name":"Английский язык"}]}""")
+                    else -> MockResponse().setResponseCode(401) // расписание (и мобильное, и веб) отказало
+                }
+            }
+        }
+        s.use {
+            val base = s.url("/").toString().trimEnd('/')
+            val c = MeshClient("a.b.c", defaultHttpClient(), school = base, dnevnik = base)
+            val acc = c.account()
+            assertTrue(!acc.web)
+            val snap = c.snapshot(acc, acc.students.single(), LocalDate.of(2026, 10, 25))
+            assertEquals(listOf("4"), snap.marks.map { it.value })
+            assertEquals("4.00", DiaryInsights.englishAverage(snap), "средние считаются сами")
+            assertTrue(snap.problems.any { it.startsWith("расписание") }, snap.problems.toString())
         }
     }
 

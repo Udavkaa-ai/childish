@@ -199,6 +199,14 @@ fun DiaryScreen(vm: AppViewModel) {
                         )
                     }
                 }
+                if (diary.problems.isNotEmpty()) {
+                    item {
+                        Text(
+                            "Часть данных МЭШ не отдал: " + diary.problems.joinToString("; "),
+                            color = Palette.Muted, fontSize = 12.sp,
+                        )
+                    }
+                }
                 item { EnglishCard(vm, diary, todayIso) }
                 val days = diary.lessons.filter { it.date >= todayIso }.groupBy { it.date }.toSortedMap().entries.take(5)
                 if (days.isNotEmpty()) item { Text("📅 Расписание", style = MaterialTheme.typography.titleLarge) }
