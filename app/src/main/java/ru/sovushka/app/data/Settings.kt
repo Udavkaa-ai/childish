@@ -42,6 +42,10 @@ data class Prefs(
     val pitchRu: Float = 1.08f,
     val meshToken: String = "",
     val meshStudentId: Long = -1,
+    /** Сколько говорит Ника со старшей: всё, только задания, молчит. */
+    val talk: String = TALK_FULL,
+    /** Ника объёмная (3D, как на иконке) или рисованная. */
+    val nika3d: Boolean = true,
     /** Меняется при смене фото детей — чтобы экраны перечитали аватарки. */
     val avatarStamp: Long = 0,
 ) {
@@ -51,6 +55,9 @@ data class Prefs(
         const val PROVIDER_YANDEX = "yandex"
         const val VOICE_ANDROID = "android"
         const val VOICE_YANDEX = "yandex"
+        const val TALK_FULL = "full"
+        const val TALK_TASKS = "tasks"
+        const val TALK_SILENT = "silent"
     }
 }
 
@@ -95,6 +102,8 @@ class Settings(context: Context) {
             meshToken = sp.getString("meshToken", d.meshToken)!!,
             meshStudentId = sp.getLong("meshStudentId", d.meshStudentId),
             avatarStamp = sp.getLong("avatarStamp", d.avatarStamp),
+            talk = sp.getString("talk", d.talk)!!,
+            nika3d = sp.getBoolean("nika3d", d.nika3d),
         )
     }
 
@@ -116,6 +125,8 @@ class Settings(context: Context) {
             .putFloat("mathSpeed", p.mathSpeed)
             .putString("meshToken", p.meshToken).putLong("meshStudentId", p.meshStudentId)
             .putLong("avatarStamp", p.avatarStamp)
+            .putString("talk", p.talk)
+            .putBoolean("nika3d", p.nika3d)
             .apply()
         _prefs.value = p
     }

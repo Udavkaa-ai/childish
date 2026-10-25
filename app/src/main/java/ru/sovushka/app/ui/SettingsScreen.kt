@@ -187,6 +187,18 @@ fun SettingsScreen(vm: AppViewModel) {
                     }
                 }
 
+                Section("👧 Какая Ника") {
+                    Radio("Объёмная 3D — как на иконке", p.nika3d) { set { it.copy(nika3d = true) } }
+                    Radio("Рисованная — как в комиксах", !p.nika3d) { set { it.copy(nika3d = false) } }
+                }
+
+                Section("💬 Сколько говорит Ника (со старшей)") {
+                    Radio("🔊 Всё: приветствия, похвала, подсказки", p.talk == Prefs.TALK_FULL) { set { it.copy(talk = Prefs.TALK_FULL) } }
+                    Radio("🔉 Меньше слов: только читает задания", p.talk == Prefs.TALK_TASKS) { set { it.copy(talk = Prefs.TALK_TASKS) } }
+                    Radio("🔇 Молчит: только текст, звук — по кнопкам 🔊", p.talk == Prefs.TALK_SILENT) { set { it.copy(talk = Prefs.TALK_SILENT) } }
+                    Hint("То же переключается кнопкой вверху экранов. С младшей Ника говорит всегда — она ещё не читает.")
+                }
+
                 Section("🔊 Голос Ники — озвучка") {
                     Radio("Голос телефона (работает без интернета)", p.voice == Prefs.VOICE_ANDROID) { set { it.copy(voice = Prefs.VOICE_ANDROID) } }
                     Radio("Yandex SpeechKit (нужен ключ Yandex Cloud)", p.voice == Prefs.VOICE_YANDEX) { set { it.copy(voice = Prefs.VOICE_YANDEX) } }

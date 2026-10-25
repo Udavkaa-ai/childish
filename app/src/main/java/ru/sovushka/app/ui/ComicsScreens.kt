@@ -64,6 +64,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.sovushka.app.R
 import ru.sovushka.app.graph
+import ru.sovushka.app.voice.Talk
 import ru.sovushka.core.Comic
 import ru.sovushka.core.ComicBook
 import ru.sovushka.core.GrammarBank
@@ -181,14 +182,14 @@ fun ComicScreen(vm: AppViewModel, id: String) {
             try {
                 c.lines.forEachIndexed { i, line ->
                     current = i
-                    g.speaker.say(line.en, SpeechText.Lang.EN)
+                    g.speaker.say(line.en, SpeechText.Lang.EN, kind = Talk.TAP)
                     delay(250)
-                    g.speaker.say(line.ru, SpeechText.Lang.RU)
+                    g.speaker.say(line.ru, SpeechText.Lang.RU, kind = Talk.TAP)
                     delay(450)
                 }
                 // В конце — чему учит комикс.
                 current = LESSON
-                g.speaker.say("А теперь главное. " + c.lesson)
+                g.speaker.say("А теперь главное. " + c.lesson, kind = Talk.TAP)
             } finally {
                 current = -1
             }
@@ -212,7 +213,7 @@ fun ComicScreen(vm: AppViewModel, id: String) {
                 )
                 Text("Нажми на комикс, чтобы рассмотреть поближе", color = Palette.Muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 LessonCard(c, active = current == LESSON) {
-                    reading?.cancel(); scope.launch { current = LESSON; g.speaker.say(c.lesson); current = -1 }
+                    reading?.cancel(); scope.launch { current = LESSON; g.speaker.say(c.lesson, kind = Talk.TAP); current = -1 }
                 }
                 if (reading == null) {
                     BigButton("🔊", "Читаем вместе с Никой", subtitle = "По-английски, с переводом и объяснением", brush = Palette.pinkish) { readAll() }
@@ -233,7 +234,7 @@ fun ComicScreen(vm: AppViewModel, id: String) {
                     Row(
                         Modifier.fillMaxWidth()
                             .glass(RoundedCornerShape(18.dp), if (active) Palette.PinkLight.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.7f), rim = 2.dp)
-                            .clickable { reading?.cancel(); scope.launch { current = i; g.speaker.say(line.en, SpeechText.Lang.EN); current = -1 } }
+                            .clickable { reading?.cancel(); scope.launch { current = i; g.speaker.say(line.en, SpeechText.Lang.EN, kind = Talk.TAP); current = -1 } }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

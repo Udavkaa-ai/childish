@@ -30,6 +30,12 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
 
 /**
+ * Что говорит Ника: CHAT — приветствия, похвала, замечания; TASK — чтение заданий;
+ * TAP — то, что ребёнок сам попросил (кнопка звука, нажатие на слово).
+ */
+enum class Talk { CHAT, TASK, TAP }
+
+/**
  * Голос Ники. По умолчанию — встроенный синтезатор Android (работает без интернета),
  * по желанию — Yandex SpeechKit (звучит естественнее, фразы кэшируются на телефоне).
  */
@@ -43,6 +49,17 @@ class Speaker(
     private val pending = ConcurrentHashMap<String, CompletableDeferred<Unit>>()
     private var job: Job? = null
     private var player: MediaPlayer? = null
+
+    /** Сейчас открыт режим младшей: она не читает, поэтому Ника говорит всегда. */
+    @Volatile
+    var youngerMode = false
+
+    /** Можно ли сейчас сказать фразу такого рода — по настройке «сколько говорит Ника». */
+    fun allowed(kind: Talk): Boolean = youngerMode || when (settings.value.talk) {
+        Prefs.TALK_TASKS -> kind != Talk.CHAT
+        Prefs.TALK_SILENT -> kind == Talk.TAP
+        else -> true
+    }
 
     /** Сейчас открыта математика: свой голос Яндекса и формулы читаются словами. */
     @Volatile
@@ -138,13 +155,14 @@ class Speaker(
     private fun english(p: Prefs): Locale = if (p.accent == "en-US") Locale.US else Locale.UK
 
     /** Сказать и не ждать (предыдущая фраза прерывается). */
-    fun speak(text: String, lang: SpeechText.Lang? = null, slow: Boolean = false, math: Boolean = mathMode) {
+    fun speak(text: String, lang: SpeechText.Lang? = null, slow: Boolean = false, math: Boolean = mathMode, kind: Talk = Talk.TAP) {
         job?.cancel()
-        job = scope.launch { say(text, lang, slow, math) }
+        job = scope.launch { say(text, lang, slow, math, kind) }
     }
 
     /** Сказать и дождаться конца. lang = null — язык определяется по кускам текста. */
-    suspend fun say(text: String, lang: SpeechText.Lang? = null, slow: Boolean = false, math: Boolean = mathMode) {
+    suspend fun say(text: String, lang: SpeechText.Lang? = null, slow: Boolean = false, math: Boolean = mathMode, kind: Talk = Talk.CHAT) {
+        if (!allowed(kind)) return
         stopNow()
         // В математике «47 : 5 = □» читается как «47 разделить на 5 равно сколько».
         val spoken = if (math && lang != SpeechText.Lang.EN) MathSpeech.forSpeech(text) else text

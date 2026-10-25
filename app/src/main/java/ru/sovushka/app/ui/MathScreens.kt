@@ -57,6 +57,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.sovushka.app.AppGraph
 import ru.sovushka.app.graph
+import ru.sovushka.app.voice.Talk
 import ru.sovushka.app.today
 import ru.sovushka.core.MathLesson
 import ru.sovushka.core.SessionBuilder
@@ -455,7 +456,7 @@ fun MathPracticeScreen(vm: AppViewModel, screen: Screen.MathPractice) {
 /** Условие задачи крупно; примеры — очень крупно, текстовые задачи — обычным шрифтом. */
 @Composable
 private fun ProblemCard(g: AppGraph, t: MathProblem) {
-    LaunchedEffect(t.key) { g.speaker.say(t.prompt) }
+    LaunchedEffect(t.key) { g.speaker.say(t.prompt, kind = Talk.TASK) }
     val short = t.prompt.length <= 28
     CardBox {
         Row(verticalAlignment = Alignment.CenterVertically) {

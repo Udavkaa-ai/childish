@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import ru.sovushka.app.data.Prefs
 import ru.sovushka.app.graph
 
 /** Большая стеклянная кнопка с иконкой — основной элемент навигации. */
@@ -106,7 +108,50 @@ fun TopBar(title: String, onBack: (() -> Unit)?, trailing: @Composable () -> Uni
             Spacer(Modifier.width(10.dp))
         }
         Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+        if (LocalTalkToggle.current) TalkToggle()
         trailing()
+    }
+}
+
+/** Показывать ли в верхней панели кнопку «сколько говорит Ника». */
+val LocalTalkToggle = staticCompositionLocalOf { false }
+
+/**
+ * Кнопка «сколько говорит Ника»: 🔊 всё — 🔉 меньше слов (только задания) — 🔇 молчит (только по кнопкам звука).
+ * Нажатие переключает по кругу, режим запоминается.
+ */
+@Composable
+fun TalkToggle() {
+    val ctx = LocalContext.current
+    val g = ctx.graph
+    val prefs by g.settings.prefs.collectAsState()
+    val (icon, label) = when (prefs.talk) {
+        Prefs.TALK_TASKS -> "🔉" to "меньше слов"
+        Prefs.TALK_SILENT -> "🔇" to "молчу"
+        else -> "🔊" to ""
+    }
+    Row(
+        Modifier.padding(end = 6.dp).glass(RoundedCornerShape(50), Color.White.copy(alpha = 0.7f), rim = 2.dp)
+            .clickable {
+                val next = when (prefs.talk) {
+                    Prefs.TALK_FULL -> Prefs.TALK_TASKS
+                    Prefs.TALK_TASKS -> Prefs.TALK_SILENT
+                    else -> Prefs.TALK_FULL
+                }
+                g.settings.update { it.copy(talk = next) }
+                if (next != Prefs.TALK_FULL) g.speaker.stop()
+                val msg = when (next) {
+                    Prefs.TALK_TASKS -> "Меньше слов: Ника читает только задания"
+                    Prefs.TALK_SILENT -> "Ника молчит: звук — только по кнопкам 🔊"
+                    else -> "Ника снова говорит всё"
+                }
+                android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
+            }
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(icon, fontSize = 20.sp)
+        if (label.isNotEmpty()) Text(" $label", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Palette.Ink)
     }
 }
 

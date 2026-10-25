@@ -50,6 +50,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.sovushka.app.AppGraph
 import ru.sovushka.app.graph
+import ru.sovushka.app.voice.Talk
 import ru.sovushka.app.today
 import ru.sovushka.app.voice.ListenException
 import ru.sovushka.core.Drill
@@ -258,9 +259,9 @@ private fun WordPicture(w: Word, big: Boolean = true) {
 @Composable
 private fun IntroTask(g: AppGraph, w: Word, onNext: () -> Unit) {
     LaunchedEffect(w.id) {
-        g.speaker.say(w.en, SpeechText.Lang.EN)
+        g.speaker.say(w.en, SpeechText.Lang.EN, kind = Talk.TASK)
         delay(300)
-        g.speaker.say(w.ru, SpeechText.Lang.RU)
+        g.speaker.say(w.ru, SpeechText.Lang.RU, kind = Talk.TASK)
     }
     CardBox {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -291,7 +292,7 @@ private fun PickTask(g: AppGraph, state: PracticeState, w: Word, options: List<S
     val scope = rememberCoroutineScope()
     var picked by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(w.id) {
-        if (listenFirst) g.speaker.say(w.en, SpeechText.Lang.EN) else g.speaker.say(w.ru, SpeechText.Lang.RU)
+        if (listenFirst) g.speaker.say(w.en, SpeechText.Lang.EN, kind = Talk.TASK) else g.speaker.say(w.ru, SpeechText.Lang.RU, kind = Talk.TASK)
     }
     Text(prompt, style = MaterialTheme.typography.titleMedium)
     if (listenFirst) {
@@ -327,7 +328,7 @@ private fun SpellTask(g: AppGraph, state: PracticeState, w: Word, letters: List<
     var mistakes by remember { mutableIntStateOf(0) }
     var wrongTile by remember { mutableStateOf(-1) }
     val used = remember { mutableStateListOf<Int>() }
-    LaunchedEffect(w.id) { g.speaker.say(w.en, SpeechText.Lang.EN) }
+    LaunchedEffect(w.id) { g.speaker.say(w.en, SpeechText.Lang.EN, kind = Talk.TASK) }
     LaunchedEffect(wrongTile) { if (wrongTile >= 0) { delay(450); wrongTile = -1 } }
 
     fun place(i: Int) {
@@ -400,7 +401,7 @@ private fun SayTask(g: AppGraph, state: PracticeState, w: Word) {
     val level by g.listener.level.collectAsState()
     var attempts by remember { mutableIntStateOf(0) }
     var heardText by remember { mutableStateOf("") }
-    LaunchedEffect(w.id) { g.speaker.say("Скажи по-английски: ${w.en}") }
+    LaunchedEffect(w.id) { g.speaker.say("Скажи по-английски: ${w.en}", kind = Talk.TASK) }
 
     Text("Скажи слово вслух", style = MaterialTheme.typography.titleMedium)
     WordPicture(w)
@@ -444,7 +445,7 @@ private fun SayTask(g: AppGraph, state: PracticeState, w: Word) {
 private fun BuildTask(g: AppGraph, state: PracticeState, t: Task.Build) {
     val scope = rememberCoroutineScope()
     val chosen = remember { mutableStateListOf<Int>() }
-    LaunchedEffect(t) { g.speaker.say(t.sentence.en, SpeechText.Lang.EN) }
+    LaunchedEffect(t) { g.speaker.say(t.sentence.en, SpeechText.Lang.EN, kind = Talk.TASK) }
 
     Text("Собери предложение", style = MaterialTheme.typography.titleMedium)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {

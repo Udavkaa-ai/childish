@@ -77,6 +77,15 @@ interface MathScreen
 
 val Screen.isMath: Boolean get() = this is MathScreen || (this is Screen.Tutor && math)
 
+/** Экраны младшей: она не читает, поэтому там Ника говорит всегда. */
+val Screen.isYounger: Boolean
+    get() = this is Screen.YoungerHome || this is Screen.YoungerPack || this is Screen.YoungerGame ||
+        this is Screen.YoungerMath || this is Screen.YoungerMathGame || (this is Screen.SubjectChoice && !older)
+
+/** Где показывать кнопку «сколько говорит Ника». */
+val Screen.hasTalkToggle: Boolean
+    get() = !isYounger && this !is Screen.Setup && this !is Screen.Settings && this !is Screen.ParentGate
+
 /** Выход к микрофону: разрешение запрашивает Activity. */
 interface MicGate {
     suspend fun ensureMic(): Boolean
@@ -111,7 +120,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val current: Screen get() = stack.last()
 
     /** Голос и озвучка формул — по предмету открытого экрана. */
-    private fun sync() { graph.speaker.mathMode = current.isMath }
+    private fun sync() {
+        graph.speaker.mathMode = current.isMath
+        graph.speaker.youngerMode = current.isYounger
+    }
 
     fun go(s: Screen) { graph.speaker.stop(); stack.add(s); sync() }
     fun replace(s: Screen) { graph.speaker.stop(); stack[stack.lastIndex] = s; sync() }
@@ -202,6 +214,7 @@ fun AppRoot(mic: MicGate) {
             // У математики свой стиль: тетрадь в клетку, строгие кнопки и Ника в очках.
             CompositionLocalProvider(
                 LocalMathStyle provides s.isMath,
+                LocalTalkToggle provides s.hasTalkToggle,
                 LocalNikaOutfit provides if (s.isMath) NikaOutfit.STRICT else NikaOutfit.CASUAL,
             ) { ScreenContent(vm, s) }
         }

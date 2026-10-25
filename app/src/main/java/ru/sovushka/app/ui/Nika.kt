@@ -72,7 +72,7 @@ private const val RAISED = 60f
  * чтобы двигать голову, глаза, рот, руки, волосы и всё тело.
  */
 @Composable
-fun Nika(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood == NikaMood.TALK) {
+fun NikaVector(mood: NikaMood, modifier: Modifier = Modifier, talking: Boolean = mood == NikaMood.TALK) {
     val loop = rememberInfiniteTransition(label = "nika")
     val phase by loop.animateFloat(
         0f, 1f, infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Restart), label = "breath",

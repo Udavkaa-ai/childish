@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import ru.sovushka.app.graph
+import ru.sovushka.app.voice.Talk
 import ru.sovushka.app.voice.ListenException
 import ru.sovushka.core.GrammarBank
 import ru.sovushka.core.Srs
@@ -96,7 +97,7 @@ fun TutorScreen(vm: AppViewModel, lessonId: String?, math: Boolean = false) {
             }
             thinking = false
             lines.add(ChatLine(true, answer))
-            g.speaker.say(answer)
+            g.speaker.say(answer, kind = Talk.TASK)
         }
     }
 
