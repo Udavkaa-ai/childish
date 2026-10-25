@@ -102,9 +102,9 @@ fun ProfilesScreen(vm: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             NikaSays("Кто сегодня будет заниматься?", NikaMood.WAVE, talking, nikaHeight = 190.dp)
-            ProfileCard("👧", prefs.olderName.ifBlank { "Старшая" }, "Учебник, правописание, повторение", Palette.pinkish) { vm.go(Screen.OlderHome) }
+            ProfileCard(true, "👧", prefs.olderName.ifBlank { "Старшая" }, "Учебник, правило, повторение", Palette.pinkish) { vm.go(Screen.OlderHome) }
             if (prefs.youngerName.isNotBlank()) {
-                ProfileCard("🧒", prefs.youngerName, "Картинки и слова на слух", Palette.bluish) { vm.go(Screen.YoungerHome) }
+                ProfileCard(false, "👧", prefs.youngerName, "Картинки и слова на слух", Palette.bluish) { vm.go(Screen.YoungerHome) }
             }
             Spacer(Modifier.weight(1f))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -120,13 +120,13 @@ fun ProfilesScreen(vm: AppViewModel) {
 }
 
 @Composable
-private fun ProfileCard(emoji: String, name: String, subtitle: String, brush: androidx.compose.ui.graphics.Brush, onClick: () -> Unit) {
+private fun ProfileCard(older: Boolean, emoji: String, name: String, subtitle: String, brush: androidx.compose.ui.graphics.Brush, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().shadow(8.dp, RoundedCornerShape(28.dp)).clip(RoundedCornerShape(28.dp)).background(brush)
             .clickable(onClick = onClick).padding(22.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(emoji, fontSize = 60.sp)
+        KidAvatar(older, emoji, 84.dp)
         Spacer(Modifier.width(16.dp))
         Column {
             Text(name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
@@ -181,6 +181,7 @@ fun OlderHomeScreen(vm: AppViewModel) {
     GradientScreen {
         Column(Modifier.fillMaxSize()) {
             TopBar(prefs.olderName.ifBlank { "Привет!" }, onBack = { vm.back() }) {
+                KidAvatar(true, "👧", 40.dp, Modifier.padding(end = 10.dp))
                 Text("⭐ ${data.older.stars}   🔥 ${data.older.visibleStreak(t)}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Palette.Ink)
             }
             Column(

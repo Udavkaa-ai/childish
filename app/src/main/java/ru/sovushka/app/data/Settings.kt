@@ -37,6 +37,8 @@ data class Prefs(
     val pitchRu: Float = 1.08f,
     val meshToken: String = "",
     val meshStudentId: Long = -1,
+    /** Меняется при смене фото детей — чтобы экраны перечитали аватарки. */
+    val avatarStamp: Long = 0,
 ) {
     companion object {
         const val PROVIDER_NONE = "none"
@@ -83,6 +85,7 @@ class Settings(context: Context) {
             pitchRu = sp.getFloat("pitchRu", d.pitchRu),
             meshToken = sp.getString("meshToken", d.meshToken)!!,
             meshStudentId = sp.getLong("meshStudentId", d.meshStudentId),
+            avatarStamp = sp.getLong("avatarStamp", d.avatarStamp),
         )
     }
 
@@ -101,6 +104,7 @@ class Settings(context: Context) {
             .putFloat("yaSpeed", p.yaSpeed).putFloat("yaPitch", p.yaPitch)
             .putFloat("pitchEn", p.pitchEn).putFloat("pitchRu", p.pitchRu)
             .putString("meshToken", p.meshToken).putLong("meshStudentId", p.meshStudentId)
+            .putLong("avatarStamp", p.avatarStamp)
             .apply()
         _prefs.value = p
     }

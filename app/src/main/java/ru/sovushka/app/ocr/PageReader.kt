@@ -50,6 +50,34 @@ class PageReader(private val context: Context) {
         file
     }
 
+    /** Фото ребёнка для аватарки: квадрат по центру 512×512 с учётом поворота. */
+    suspend fun importAvatar(uri: Uri, target: File) = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        var sample = 1
+        while (minOf(bounds.outWidth, bounds.outHeight) / sample > 1400) sample *= 2
+        val raw = resolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
+        } ?: error("Не удалось открыть фото")
+        val rotation = resolver.openInputStream(uri)?.use {
+            when (ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+        } ?: 0f
+        val side = minOf(raw.width, raw.height)
+        val scale = 512f / side
+        val m = Matrix().apply { postScale(scale, scale); postRotate(rotation) }
+        val square = Bitmap.createBitmap(raw, (raw.width - side) / 2, (raw.height - side) / 2, side, side, m, true)
+        target.parentFile?.mkdirs()
+        target.outputStream().use { square.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+        if (square !== raw) raw.recycle()
+        square.recycle()
+    }
+
     suspend fun recognize(file: File): String {
         val bmp = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(file.path) } ?: return ""
         return try {

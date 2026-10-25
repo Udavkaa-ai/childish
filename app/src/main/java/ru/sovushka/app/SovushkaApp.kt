@@ -41,6 +41,19 @@ class AppGraph(val context: Context) {
     val speaker = Speaker(context, settings) { yandexSpeech() }
     val listener = Listener(context, settings) { yandexSpeech() }
 
+    /** Фото детей для аватарок (older = старшая). */
+    fun avatarFile(older: Boolean): File = File(context.filesDir, "avatars/${if (older) "older" else "younger"}.jpg")
+
+    suspend fun setAvatar(older: Boolean, uri: android.net.Uri) {
+        pages.importAvatar(uri, avatarFile(older))
+        settings.update { it.copy(avatarStamp = System.currentTimeMillis()) }
+    }
+
+    fun removeAvatar(older: Boolean) {
+        avatarFile(older).delete()
+        settings.update { it.copy(avatarStamp = System.currentTimeMillis()) }
+    }
+
     /** Встроенные сертификаты НУЦ Минцифры для GigaChat. */
     private val bundledCerts by lazy { runCatching { Tls.russianTrustedCa() }.getOrDefault(emptyList()) }
 

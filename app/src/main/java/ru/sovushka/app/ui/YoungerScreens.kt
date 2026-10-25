@@ -76,6 +76,7 @@ fun YoungerHomeScreen(vm: AppViewModel) {
     GradientScreen {
         Column(Modifier.fillMaxSize()) {
             TopBar("", onBack = { vm.back() }) {
+                KidAvatar(false, "👧", 44.dp, Modifier.padding(end = 10.dp))
                 Text("⭐ ${data.younger.stars}", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Palette.Ink, modifier = Modifier.padding(end = 12.dp))
             }
             Row(Modifier.fillMaxWidth().clickable { g.speaker.speak("Привет, ${prefs.youngerName}! Нажми на картинку!") }, horizontalArrangement = Arrangement.Center) {

@@ -142,6 +142,9 @@ fun SettingsScreen(vm: AppViewModel) {
                     OutlinedTextField(p.olderAge.toString(), { v -> v.filter(Char::isDigit).take(2).toIntOrNull()?.let { a -> set { it.copy(olderAge = a) } } },
                         label = { Text("Возраст") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(p.youngerName, { v -> set { it.copy(youngerName = v) } }, label = { Text("Младшая (пусто — скрыть)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text("Фото для аватарок:")
+                    AvatarPicker(true, p.olderName.ifBlank { "Старшая" })
+                    if (p.youngerName.isNotBlank()) AvatarPicker(false, p.youngerName)
                 }
 
                 Section("🧠 Нейросеть — уроки по фото и разговор с Никой") {
@@ -268,6 +271,46 @@ fun SettingsScreen(vm: AppViewModel) {
             confirmButton = { TextButton(onClick = { status = null }) { Text("OK") } },
             text = { Text(msg, style = MaterialTheme.typography.bodyLarge) },
         )
+    }
+}
+
+/** Фото ребёнка: камера или галерея, обрезается в квадрат по центру. */
+@Composable
+private fun AvatarPicker(older: Boolean, name: String) {
+    val ctx = LocalContext.current
+    val g = ctx.graph
+    val scope = rememberCoroutineScope()
+    var pending by remember { mutableStateOf<android.net.Uri?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    fun apply(uri: android.net.Uri) = scope.launch {
+        error = runCatching { g.setAvatar(older, uri) }.exceptionOrNull()?.let { "Не получилось: ${it.message}" }
+    }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val u = pending
+        if (ok && u != null) apply(u)
+    }
+    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { u -> if (u != null) apply(u) }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        KidAvatar(older, "👧", 56.dp)
+        Column(Modifier.weight(1f)) {
+            Text(name, fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = {
+                    val dir = java.io.File(ctx.cacheDir, "camera").apply { mkdirs() }
+                    val f = java.io.File(dir, "avatar-${System.currentTimeMillis()}.jpg")
+                    val u = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
+                    pending = u
+                    camera.launch(u)
+                }) { Text("📷") }
+                TextButton(onClick = {
+                    gallery.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }) { Text("🖼") }
+                val stamp = g.settings.prefs.collectAsState().value.avatarStamp
+                val hasPhoto = remember(stamp) { g.avatarFile(older).exists() }
+                if (hasPhoto) TextButton(onClick = { g.removeAvatar(older) }) { Text("Убрать") }
+            }
+            error?.let { Text(it, color = Palette.Bad, fontSize = 13.sp) }
+        }
     }
 }
 
