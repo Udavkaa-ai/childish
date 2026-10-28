@@ -145,7 +145,7 @@ fun TalkToggle() {
                     else -> Prefs.TALK_FULL
                 }
                 g.settings.update { it.copy(talk = next) }
-                if (next != Prefs.TALK_FULL) g.speaker.stop()
+                g.speaker.talkModeChanged()
                 val msg = when (next) {
                     Prefs.TALK_TASKS -> "Меньше слов: Ника читает только задания"
                     Prefs.TALK_SILENT -> "Ника молчит: звук — только по кнопкам 🔊"

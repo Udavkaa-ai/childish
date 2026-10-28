@@ -400,7 +400,6 @@ private fun SayTask(g: AppGraph, state: PracticeState, w: Word) {
     val listening by g.listener.listening.collectAsState()
     val level by g.listener.level.collectAsState()
     var attempts by remember { mutableIntStateOf(0) }
-    var heardText by remember { mutableStateOf("") }
     LaunchedEffect(w.id) { g.speaker.say("Скажи по-английски: ${w.en}", kind = Talk.TASK) }
 
     Text("Скажи слово вслух", style = MaterialTheme.typography.titleMedium)
@@ -416,14 +415,14 @@ private fun SayTask(g: AppGraph, state: PracticeState, w: Word) {
                     if (!mic.ensureMic()) { state.feedback = "Разреши микрофон, чтобы я тебя слышала"; return@launch }
                     g.speaker.stop()
                     try {
-                        val heard = g.listener.listen("en-US")
+                        val heard = g.listener.listen("en-US", hints = listOf(w.en))
                         attempts++
-                        heardText = heard.firstOrNull().orEmpty()
                         when {
                             TextMatch.spokenMatch(w.en, heard) -> react(g, state, true, w, scope)
-                            attempts >= 3 -> react(g, state, false, w, scope, correctText = w.en)
+                            // Распознаватель ошибается чаще ребёнка: после трёх попыток не наказываем.
+                            attempts >= 3 -> react(g, state, true, w, scope)
                             else -> {
-                                state.feedback = if (heardText.isBlank()) "Не расслышала. Скажи ещё раз!" else "Я услышала «$heardText». Попробуй ещё!"
+                                state.feedback = if (heard.isEmpty()) "Не расслышала. Скажи ещё раз чуть громче!" else "Ой, у меня плохо слышно. Скажи ещё раз — громко и чётко!"
                                 g.speaker.say(w.en, SpeechText.Lang.EN, slow = true)
                             }
                         }
@@ -434,6 +433,13 @@ private fun SayTask(g: AppGraph, state: PracticeState, w: Word) {
             }
         }
         SoundButton({ g.speaker.speak(w.en, SpeechText.Lang.EN, slow = true) }, slow = true)
+    }
+    if (state.result == null && attempts > 0) {
+        // Родитель рядом слышит, что сказано верно, а распознаватель — нет.
+        PillButton("✅ Я сказала правильно", Modifier.fillMaxWidth(), brush = MathPalette.teal) {
+            g.speaker.stop()
+            react(g, state, true, w, scope)
+        }
     }
     if (state.result == null) {
         TextButton(onClick = { state.next() }, modifier = Modifier.fillMaxWidth()) { Text("Пропустить (не могу сейчас говорить)") }

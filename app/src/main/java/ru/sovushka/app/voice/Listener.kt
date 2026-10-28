@@ -45,19 +45,22 @@ class Listener(
     fun available(): Boolean =
         (settings.value.voice == Prefs.VOICE_YANDEX && yandex() != null) || SpeechRecognizer.isRecognitionAvailable(context)
 
-    /** Слушать одну фразу. lang: "en-US" или "ru-RU". Возвращает варианты распознавания (может быть пусто). */
-    suspend fun listen(lang: String): List<String> {
+    /**
+     * Слушать одну фразу. lang: "en-US" или "ru-RU". Возвращает варианты распознавания (может быть пусто).
+     * hints — слова, которые ребёнок, скорее всего, скажет: Android 13+ охотнее слышит именно их.
+     */
+    suspend fun listen(lang: String, hints: List<String> = emptyList()): List<String> {
         _listening.value = true
         try {
             val ya = if (settings.value.voice == Prefs.VOICE_YANDEX) yandex() else null
-            return if (ya != null) listenYandex(ya, lang) else listenAndroid(lang)
+            return if (ya != null) listenYandex(ya, lang) else listenAndroid(lang, hints)
         } finally {
             _listening.value = false
             _level.value = 0f
         }
     }
 
-    private suspend fun listenAndroid(lang: String): List<String> = withContext(Dispatchers.Main) {
+    private suspend fun listenAndroid(lang: String, hints: List<String>): List<String> = withContext(Dispatchers.Main) {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             throw ListenException("На телефоне нет распознавания речи. Включите Yandex SpeechKit в настройках.")
         }
@@ -97,6 +100,9 @@ class Listener(
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                if (hints.isNotEmpty() && android.os.Build.VERSION.SDK_INT >= 33) {
+                    putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, ArrayList(hints))
+                }
             }
             sr.startListening(intent)
             cont.invokeOnCancellation { Handler(Looper.getMainLooper()).post { runCatching { sr.destroy() } } }

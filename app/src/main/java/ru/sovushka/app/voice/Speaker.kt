@@ -61,6 +61,30 @@ class Speaker(
         else -> true
     }
 
+    /** Что сейчас звучит (null — тишина) и последнее задание на экране — чтобы при смене режима не оборвать задание. */
+    @Volatile
+    private var current: Talk? = null
+    private var phrase = 0
+    private class Said(val text: String, val lang: SpeechText.Lang?, val slow: Boolean, val math: Boolean)
+    @Volatile
+    private var lastTask: Said? = null
+
+    /** Ушли с экрана — его задание больше не повторяем. */
+    fun forgetTask() { lastTask = null }
+
+    /**
+     * Сменился режим «сколько говорит Ника»: замолкаем, только если звучащее теперь не положено.
+     * Если тихо, а задания снова читаются, — читаем задание на экране, чтобы режим было слышно сразу.
+     */
+    fun talkModeChanged() {
+        val now = current
+        if (now != null) {
+            if (!allowed(now)) stop()
+        } else if (allowed(Talk.TASK)) {
+            lastTask?.let { t -> speak(t.text, t.lang, t.slow, t.math, Talk.TASK) }
+        }
+    }
+
     /** Сейчас открыта математика: свой голос Яндекса и формулы читаются словами. */
     @Volatile
     var mathMode = false
@@ -162,6 +186,7 @@ class Speaker(
 
     /** Сказать и дождаться конца. lang = null — язык определяется по кускам текста. */
     suspend fun say(text: String, lang: SpeechText.Lang? = null, slow: Boolean = false, math: Boolean = mathMode, kind: Talk = Talk.CHAT) {
+        if (kind == Talk.TASK) lastTask = Said(text, lang, slow, math)
         if (!allowed(kind)) return
         stopNow()
         // В математике «47 : 5 = □» читается как «47 разделить на 5 равно сколько».
@@ -173,6 +198,8 @@ class Speaker(
         }.filter { it.text.isNotBlank() }
         if (segments.isEmpty()) return
         _speaking.value = true
+        current = kind
+        val mine = ++phrase
         try {
             val p = settings.value
             if (p.voice == Prefs.VOICE_YANDEX) {
@@ -203,6 +230,7 @@ class Speaker(
             for (seg in segments) speakAndroid(seg, p, slow)
         } finally {
             _speaking.value = false
+            if (phrase == mine) current = null
         }
     }
 
@@ -257,6 +285,7 @@ class Speaker(
         job?.cancel()
         stopNow()
         _speaking.value = false
+        current = null
     }
 
     private fun sha1(s: String): String =

@@ -79,4 +79,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     // Распознавание текста прямо на телефоне, модель встроена в APK — без Google Play и интернета.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // Своя камера: системную родительский контроль ограничивает по времени. И сканер QR для ключей с компьютера.
+    implementation("androidx.camera:camera-camera2:1.4.0")
+    implementation("androidx.camera:camera-lifecycle:1.4.0")
+    implementation("androidx.camera:camera-view:1.4.0")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
 }

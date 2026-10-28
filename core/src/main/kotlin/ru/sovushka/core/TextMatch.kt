@@ -56,16 +56,50 @@ object TextMatch {
 
     /**
      * Проверка произношения по вариантам распознавания.
-     * Распознаватель часто слышит слово внутри фразы ("a dog", "dog dog"), поэтому
-     * засчитываем и вхождение ожидаемого слова в услышанное.
+     * Распознаватель часто слышит слово внутри фразы ("a dog", "dog dog") или похожее по звучанию
+     * ("dock" вместо "dog" — русские дети оглушают конечные согласные), поэтому засчитываем
+     * вхождение, близкое написание и одинаковое звучание.
      */
     fun spokenMatch(expected: String, heard: List<String>, threshold: Float = 0.7f): Boolean {
         val e = stripArticle(normalize(expected))
         if (e.isEmpty()) return false
+        val eKey = soundKey(e)
+        val eWords = e.split(' ').size
         return heard.any { h ->
             val n = stripArticle(normalize(h))
-            n == e || " $n ".contains(" $e ") || similarity(e, n) >= threshold
+            if (n == e || " $n ".contains(" $e ") || similarity(e, n) >= threshold) return@any true
+            // Звучание: вся фраза или любой кусок из стольких же слов.
+            val words = n.split(' ').filter { it.isNotEmpty() }
+            (listOf(n) + words.windowed(eWords, partialWindows = false).map { it.joinToString(" ") }).any { part ->
+                val k = soundKey(part)
+                k == eKey || (eKey.length >= 4 && levenshtein(k, eKey) <= 1)
+            }
         }
+    }
+
+    /**
+     * Упрощённый «звуковой ключ» английского слова: одинаково звучащие написания и типичные
+     * ошибки русскоговорящих (звонкие/глухие согласные, w/v, th) дают один ключ.
+     * Гласные сворачиваются в одну метку — важен «скелет» слова.
+     */
+    fun soundKey(text: String): String = text.lowercase().split(' ').filter { it.isNotBlank() }.joinToString("") { word ->
+        var w = word.filter { it in 'a'..'z' }
+        if (w.isEmpty()) return@joinToString ""
+        w = w.replace(Regex("^(kn|gn|pn|wr|ps)")) { it.value.substring(1) }
+            .replace(Regex("^wh"), "w")
+            .replace(Regex("^x"), "s")
+            .replace("x", "ks")
+            .replace("tch", "ch").replace("sch", "sk").replace("ph", "f").replace("ck", "k").replace("dg", "j")
+            .replace(Regex("(?<=.)gh"), "").replace("th", "t").replace("sh", "9").replace("ch", "9")
+            .replace(Regex("c(?=[eiy])"), "s").replace("c", "k").replace("q", "k")
+            .replace(Regex("g(?=[eiy])"), "j")
+            .replace('d', 't').replace('b', 'p').replace('g', 'k').replace('v', 'f').replace('w', 'f').replace('z', 's').replace('j', '9')
+            .replace("h", "")
+            .replace(Regex("(?<=.)y"), "a")
+            .replace(Regex("[aeiouy]+"), "a")
+            .replace(Regex("(.)\\1+"), "$1")
+            .replace(Regex("(?<=.)a$"), "")
+        w
     }
 
     private fun stripArticle(s: String): String =

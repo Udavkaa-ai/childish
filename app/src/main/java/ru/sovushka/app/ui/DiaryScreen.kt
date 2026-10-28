@@ -145,12 +145,14 @@ fun DiaryScreen(vm: AppViewModel) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("💻 Подключение через компьютер", style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    "1. На компьютере откройте school.mos.ru в Chrome или Яндекс Браузере и войдите как обычно.\n" +
-                                        "2. Нажмите F12 → вкладка «Application» («Приложение») → Cookies → https://school.mos.ru.\n" +
-                                        "3. Найдите строку aupd_token и скопируйте её значение (длинная строка, начинается с eyJ).\n" +
-                                        "4. Отправьте её себе на телефон (например, в «Избранное» мессенджера), скопируйте и нажмите кнопку ниже.",
+                                    "1. На компьютере откройте страницу «Ключи для Ники» (файл tools/nika-keys.html из проекта " +
+                                        "или ссылку, которую дал Claude) — там же написано, где взять aupd_token на school.mos.ru.\n" +
+                                        "2. Вставьте ключ — на экране появится QR-код.\n" +
+                                        "3. Нажмите кнопку ниже и наведите камеру на QR-код.",
                                     fontSize = 15.sp,
                                 )
+                                ScanKeysButton(modifier = Modifier.fillMaxWidth())
+                                Hint("Или вставьте ключ вручную, если он уже скопирован на телефоне:")
                                 OutlinedTextField(
                                     manualToken, { manualToken = it.trim() }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                                     placeholder = { Text("eyJ…") },

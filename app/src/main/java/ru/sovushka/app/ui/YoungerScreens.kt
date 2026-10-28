@@ -200,7 +200,7 @@ fun RepeatGameScreen(vm: AppViewModel, screen: Screen.YoungerGame) {
                         scope.launch {
                             if (!mic.ensureMic()) return@launch
                             g.speaker.stop()
-                            val heard = try { g.listener.listen("en-US") } catch (e: ListenException) { emptyList() }
+                            val heard = try { g.listener.listen("en-US", hints = listOf(w.en)) } catch (e: ListenException) { emptyList() }
                             tries++
                             if (TextMatch.spokenMatch(w.en, heard, threshold = 0.55f)) {
                                 stars++; mood = NikaMood.HAPPY

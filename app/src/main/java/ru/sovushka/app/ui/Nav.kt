@@ -123,6 +123,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun sync() {
         graph.speaker.mathMode = current.isMath
         graph.speaker.youngerMode = current.isYounger
+        graph.speaker.forgetTask()
     }
 
     fun go(s: Screen) { graph.speaker.stop(); stack.add(s); sync() }

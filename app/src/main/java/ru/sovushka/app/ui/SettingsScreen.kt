@@ -272,6 +272,8 @@ fun SettingsScreen(vm: AppViewModel) {
                 Section("🏫 Дневник МЭШ") {
                     Text(if (p.meshToken.isBlank()) "Не подключён" else "Подключён ✅")
                     PillButton(if (p.meshToken.isBlank()) "Подключить" else "Открыть дневник") { vm.go(Screen.Diary) }
+                    ScanKeysButton("📷 Ключи с компьютера по QR")
+                    Hint("Страница для компьютера — tools/nika-keys.html: вставьте там ключ МЭШ (и при желании ключи нейросети и голоса), появится QR-код.")
                 }
 
                 Section("💾 Данные") {
@@ -303,28 +305,19 @@ private fun AvatarPicker(older: Boolean, name: String) {
     val ctx = LocalContext.current
     val g = ctx.graph
     val scope = rememberCoroutineScope()
-    var pending by remember { mutableStateOf<android.net.Uri?>(null) }
+    var camera by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     fun apply(uri: android.net.Uri) = scope.launch {
         error = runCatching { g.setAvatar(older, uri) }.exceptionOrNull()?.let { "Не получилось: ${it.message}" }
     }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val u = pending
-        if (ok && u != null) apply(u)
-    }
+    if (camera) CameraScreen(onClose = { camera = false }, title = "Сфотографируй лицо", multiple = false, onPhoto = { apply(it) })
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { u -> if (u != null) apply(u) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         KidAvatar(older, "👧", 56.dp)
         Column(Modifier.weight(1f)) {
             Text(name, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = {
-                    val dir = java.io.File(ctx.cacheDir, "camera").apply { mkdirs() }
-                    val f = java.io.File(dir, "avatar-${System.currentTimeMillis()}.jpg")
-                    val u = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
-                    pending = u
-                    camera.launch(u)
-                }) { Text("📷") }
+                TextButton(onClick = { camera = true }) { Text("📷") }
                 TextButton(onClick = {
                     gallery.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 }) { Text("🖼") }

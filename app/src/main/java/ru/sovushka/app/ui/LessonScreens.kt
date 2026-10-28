@@ -51,7 +51,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
 import ru.sovushka.app.graph
 import ru.sovushka.core.Builtin
@@ -87,7 +86,7 @@ fun CaptureScreen(vm: AppViewModel) {
     val c = vm.capture
     val scope = rememberCoroutineScope()
     val talking by g.speaker.speaking.collectAsState()
-    var pendingUri by remember { mutableStateOf<Uri?>(null) }
+    var camera by remember { mutableStateOf(false) }
 
     fun addPhoto(uri: Uri) = scope.launch {
         runCatching { g.pages.importPhoto(uri) }
@@ -95,16 +94,14 @@ fun CaptureScreen(vm: AppViewModel) {
             .onFailure { c.error = "Не получилось открыть фото: ${it.message}" }
     }
 
-    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val uri = pendingUri
-        if (ok && uri != null) addPhoto(uri)
-    }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) addPhoto(uri) }
 
     LaunchedEffect(c.draft) { if (c.draft != null) vm.replace(Screen.Draft) }
     LaunchedEffect(Unit) {
         if (c.photos.isEmpty()) g.speaker.say("Сфотографируй страницу учебника. Можно несколько страниц.")
     }
+
+    if (camera) CameraScreen(onClose = { camera = false }, onPhoto = { addPhoto(it) })
 
     GradientScreen {
         Column(Modifier.fillMaxSize()) {
@@ -127,13 +124,7 @@ fun CaptureScreen(vm: AppViewModel) {
                     Hint("Нажми на фото, чтобы убрать его.")
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PillButton("📷 Камера", Modifier.weight(1f), enabled = !c.busy) {
-                        val dir = File(ctx.cacheDir, "camera").apply { mkdirs() }
-                        val file = File(dir, "page-${System.currentTimeMillis()}.jpg")
-                        val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", file)
-                        pendingUri = uri
-                        takePicture.launch(uri)
-                    }
+                    PillButton("📷 Камера", Modifier.weight(1f), enabled = !c.busy) { camera = true }
                     PillButton("🖼 Галерея", Modifier.weight(1f), brush = Palette.bluish, enabled = !c.busy) {
                         pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     }
