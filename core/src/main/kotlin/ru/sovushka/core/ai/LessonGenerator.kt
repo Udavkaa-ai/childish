@@ -76,7 +76,10 @@ class LessonGenerator(private val llm: LlmClient) {
                 ChatMessage(ChatMessage.Role.USER, "Ответ не разобрался. Верни только один JSON-объект по схеме, без текста вокруг."),
             temperature = 0.1, maxTokens = 4500,
         )
-        return parse(retry) ?: throw LlmException("Нейросеть ответила не в том формате. Попробуйте ещё раз.")
+        return parse(retry) ?: throw LlmException(
+            "Нейросеть ответила не в том формате. Попробуйте ещё раз." +
+                retry.trim().take(160).let { if (it.isEmpty()) "" else "\n\nОна ответила: «$it…»" },
+        )
     }
 
     companion object {
@@ -112,6 +115,9 @@ class LessonGenerator(private val llm: LlmClient) {
 Правила:
 - 6–$MAX_WORDS самых важных слов страницы: новая лексика и слова темы. Не бери служебные слова (the, a, is) и слова из заданий (read, listen, match), если урок не про них.
 - Исправляй ошибки распознавания. Не придумывай слова, которых нет в теме страницы.
+- Если это лист с упражнениями (вставь слово, сделай предложение отрицательным или вопросительным и т. п.),
+  главное — правило и упражнения по образцу этих заданий; слова возьми из предложений упражнений (3–8 штук).
+- Ответ должен поместиться целиком: короткие explain, без лишних полей.
 - Английские слова пиши с маленькой буквы, кроме имён и «I». Перевод — самый простой и частый.
 - 3–$MAX_SENTENCES предложений, лучше из текста страницы, упрощённых при необходимости.
 - 6–$MAX_DRILLS упражнений на грамматику и построение предложений: больше половины — на правило этой страницы,
@@ -135,11 +141,9 @@ ${GrammarBank.catalog()}
 
         /** Достаём JSON из ответа (бывает обёрнут в ```json ... ``` или с текстом вокруг) и чистим. */
         fun parse(raw: String): GeneratedLesson? {
-            val start = raw.indexOf('{')
-            val end = raw.lastIndexOf('}')
-            if (start < 0 || end <= start) return null
+            val body = JsonRepair.extract(raw) ?: return null
             val lesson = try {
-                json.decodeFromString<GeneratedLesson>(raw.substring(start, end + 1))
+                json.decodeFromString<GeneratedLesson>(body)
             } catch (e: Exception) {
                 return null
             }
@@ -148,17 +152,19 @@ ${GrammarBank.catalog()}
                 .filter { it.en.isNotEmpty() && it.ru.isNotEmpty() && it.en.any { c -> c in 'a'..'z' || c in 'A'..'Z' } }
                 .distinctBy { it.en.lowercase() }
                 .take(MAX_WORDS)
-            if (words.isEmpty()) return null
             val sentences = lesson.sentences
                 .map { GeneratedSentence(it.en.trim(), it.ru.trim()) }
                 .filter { it.en.isNotEmpty() && it.ru.isNotEmpty() }
                 .take(MAX_SENTENCES)
+            val drills = lesson.drills.filter { it.toDrill() != null }.take(MAX_DRILLS)
+            // Лист с упражнениями без новых слов — тоже урок: правило и задания.
+            if (words.isEmpty() && drills.isEmpty() && sentences.isEmpty()) return null
             return lesson.copy(
                 title = lesson.title.trim().ifEmpty { "Новый урок" },
                 grammar = lesson.grammar.trim(),
                 words = words,
                 sentences = sentences,
-                drills = lesson.drills.filter { it.toDrill() != null }.take(MAX_DRILLS),
+                drills = drills,
                 topics = lesson.topics.map { it.trim() }.filter { GrammarBank.topic(it) != null }.distinct().take(4),
             )
         }

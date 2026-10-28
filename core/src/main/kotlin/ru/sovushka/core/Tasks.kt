@@ -64,7 +64,7 @@ object SessionBuilder {
         drills: List<Drill> = emptyList(),
         reviewDrills: List<Drill> = emptyList(),
     ): List<Task> {
-        if (words.isEmpty()) return emptyList()
+        if (words.isEmpty() && sentences.isEmpty() && drills.isEmpty()) return emptyList()
         // Берём в первую очередь хуже всего выученные слова.
         val picked = words.sortedWith(compareBy<Word> { it.box }.thenBy { it.right - it.wrong })
             .take(LESSON_WORDS)
@@ -82,7 +82,9 @@ object SessionBuilder {
         val builds = sentences.filter { tokenize(it.en).size in 2..9 }
             .shuffled(random).take(2)
             .map { Task.Build(it, tokenize(it.en).shuffled(random)) }
-        val grammar = grammar(drills, LESSON_DRILLS - minOf(3, reviewDrills.size), random) + grammar(reviewDrills, 3, random)
+        // Урок без слов (лист с упражнениями) — все упражнения страницы.
+        val own = if (words.isEmpty()) drills.size else LESSON_DRILLS - minOf(3, reviewDrills.size)
+        val grammar = grammar(drills, own, random) + grammar(reviewDrills, 3, random)
         return intro + spread(wordTasks.shuffled(random)) + builds + grammar.shuffled(random)
     }
 

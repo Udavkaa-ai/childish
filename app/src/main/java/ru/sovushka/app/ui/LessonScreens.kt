@@ -204,7 +204,7 @@ fun DraftScreen(vm: AppViewModel) {
                 }
             }
             Box(Modifier.navigationBarsPadding().padding(16.dp)) {
-                BigButton("💾", "Сохранить и учить", enabled = words.any { it.en.isNotBlank() && it.ru.isNotBlank() }) {
+                BigButton("💾", "Сохранить и учить", enabled = words.any { it.en.isNotBlank() && it.ru.isNotBlank() } || draft.validDrills().isNotEmpty()) {
                     scope.launch {
                         val id = UUID.randomUUID().toString()
                         val lesson = Lesson(
@@ -368,7 +368,7 @@ fun LessonScreen(vm: AppViewModel, id: String) {
                 }
             }
             Column(Modifier.navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                BigButton("▶️", "Учить", subtitle = "Слушать, выбирать, писать и говорить", enabled = words.isNotEmpty()) { vm.go(Screen.Practice(id)) }
+                BigButton("▶️", "Учить", subtitle = "Слушать, выбирать, писать и говорить", enabled = words.isNotEmpty() || lesson.drills.isNotEmpty() || lesson.sentences.isNotEmpty()) { vm.go(Screen.Practice(id)) }
                 BigButton("💬", "Спросить Нику про урок", brush = Palette.buttonSoft) { vm.go(Screen.Tutor(id)) }
             }
         }

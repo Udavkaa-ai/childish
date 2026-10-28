@@ -419,8 +419,10 @@ private fun SayTask(g: AppGraph, state: PracticeState, w: Word) {
                         attempts++
                         when {
                             TextMatch.spokenMatch(w.en, heard) -> react(g, state, true, w, scope)
-                            // Распознаватель ошибается чаще ребёнка: после трёх попыток не наказываем.
-                            attempts >= 3 -> react(g, state, true, w, scope)
+                            // Со второй попытки прощаем звук-другой — распознаватель ошибается чаще ребёнка.
+                            attempts >= 2 && TextMatch.spokenClose(w.en, heard) -> react(g, state, true, w, scope)
+                            // Три раза услышано совсем другое — показываем правильное слово.
+                            attempts >= 3 && heard.isNotEmpty() -> react(g, state, false, w, scope, correctText = w.en)
                             else -> {
                                 state.feedback = if (heard.isEmpty()) "Не расслышала. Скажи ещё раз чуть громче!" else "Ой, у меня плохо слышно. Скажи ещё раз — громко и чётко!"
                                 g.speaker.say(w.en, SpeechText.Lang.EN, slow = true)
@@ -434,7 +436,7 @@ private fun SayTask(g: AppGraph, state: PracticeState, w: Word) {
         }
         SoundButton({ g.speaker.speak(w.en, SpeechText.Lang.EN, slow = true) }, slow = true)
     }
-    if (state.result == null && attempts > 0) {
+    if (state.result == null && attempts >= 2) {
         // Родитель рядом слышит, что сказано верно, а распознаватель — нет.
         PillButton("✅ Я сказала правильно", Modifier.fillMaxWidth(), brush = MathPalette.teal) {
             g.speaker.stop()

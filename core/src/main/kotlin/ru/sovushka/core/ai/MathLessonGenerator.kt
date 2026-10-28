@@ -76,7 +76,10 @@ class MathLessonGenerator(private val llm: LlmClient) {
                 ChatMessage(ChatMessage.Role.USER, "Ответ не разобрался. Верни только один JSON-объект по схеме, без текста вокруг."),
             temperature = 0.1, maxTokens = 4500,
         )
-        return parse(retry) ?: throw LlmException("Нейросеть ответила не в том формате. Попробуйте ещё раз.")
+        return parse(retry) ?: throw LlmException(
+            "Нейросеть ответила не в том формате. Попробуйте ещё раз." +
+                retry.trim().take(160).let { if (it.isEmpty()) "" else "\n\nОна ответила: «$it…»" },
+        )
     }
 
     companion object {
@@ -116,11 +119,9 @@ ${MathBank.catalog()}
 """.trim()
 
         fun parse(raw: String): GeneratedMathLesson? {
-            val start = raw.indexOf('{')
-            val end = raw.lastIndexOf('}')
-            if (start < 0 || end <= start) return null
+            val body = JsonRepair.extract(raw) ?: return null
             val lesson = try {
-                json.decodeFromString<GeneratedMathLesson>(raw.substring(start, end + 1))
+                json.decodeFromString<GeneratedMathLesson>(body)
             } catch (e: Exception) {
                 return null
             }

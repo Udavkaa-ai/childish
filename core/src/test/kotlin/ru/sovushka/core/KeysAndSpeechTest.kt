@@ -43,4 +43,28 @@ class KeysAndSpeechTest {
         assertFalse(TextMatch.spokenMatch("elephant", listOf("bicycle")))
         assertFalse(TextMatch.spokenMatch("apple", listOf("table")))
     }
+
+    @Test
+    fun closeButNotAnything() {
+        assertTrue(TextMatch.spokenClose("elephant", listOf("elefan")))
+        assertTrue(TextMatch.spokenClose("pencil", listOf("pensel")))
+        assertFalse(TextMatch.spokenClose("elephant", listOf("bicycle")))
+        assertFalse(TextMatch.spokenClose("cat", listOf("table")))
+        assertFalse(TextMatch.spokenClose("dog", listOf("hello")))
+        assertFalse(TextMatch.spokenClose("apple", emptyList()))
+    }
+
+    @Test
+    fun brokenLessonJsonIsRepaired() {
+        val cut = """Вот урок: {"title":"Present Simple","grammar":"Отрицание: don't / doesn't.","words":[],
+            "drills":[{"kind":"gap","prompt":"She ___ like milk.","options":["doesn't","don't"],"answer":"doesn't","explain":"она — doesn't"},
+            {"kind":"gap","prompt":"They ___ play""".trimIndent()
+        val lesson = ru.sovushka.core.ai.LessonGenerator.parse(cut)!!
+        assertEquals("Present Simple", lesson.title)
+        assertEquals(1, lesson.validDrills().size)
+        assertTrue(lesson.words.isEmpty())
+        val tasks = SessionBuilder.lesson(emptyList(), emptyList(), emptyList(), canSpeak = false, drills = lesson.validDrills())
+        assertEquals(1, tasks.size)
+        assertNull(ru.sovushka.core.ai.LessonGenerator.parse("не JSON"))
+    }
 }

@@ -78,6 +78,21 @@ object TextMatch {
     }
 
     /**
+     * «Почти то же слово»: звучание отличается на звук-другой. Засчитываем, когда ребёнок уже
+     * пробовал несколько раз, — совсем другое слово сюда не проходит.
+     */
+    fun spokenClose(expected: String, heard: List<String>): Boolean {
+        if (spokenMatch(expected, heard, threshold = 0.5f)) return true
+        val e = stripArticle(normalize(expected))
+        val eKey = soundKey(e)
+        if (eKey.length < 3) return false
+        return heard.any { h ->
+            val n = stripArticle(normalize(h))
+            n.split(' ').filter { it.isNotEmpty() }.let { listOf(n) + it }.any { levenshtein(soundKey(it), eKey) <= maxOf(1, eKey.length / 3) }
+        }
+    }
+
+    /**
      * Упрощённый «звуковой ключ» английского слова: одинаково звучащие написания и типичные
      * ошибки русскоговорящих (звонкие/глухие согласные, w/v, th) дают один ключ.
      * Гласные сворачиваются в одну метку — важен «скелет» слова.
