@@ -1,0 +1,27 @@
+name: Картинки ARASAAC
+
+# Запускается вручную: скачивает картинки для букваря и кладёт их в art/arasaac для проверки.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pillow
+      - run: python tools/fetch_pictures.py
+      - name: Сохранить в репозиторий
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add art/arasaac
+          git commit -m "Картинки ARASAAC для букваря [skip ci]" || echo "нечего сохранять"
+          git push
