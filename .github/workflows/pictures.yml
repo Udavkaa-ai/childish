@@ -1,8 +1,13 @@
 name: Картинки ARASAAC
 
-# Запускается вручную: скачивает картинки для букваря и кладёт их в art/arasaac для проверки.
+# Скачивает картинки для букваря и кладёт их в art/arasaac для проверки.
+# Запускается вручную или когда меняется сам скрипт.
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - tools/fetch_pictures.py
+      - .github/workflows/pictures.yml
 
 permissions:
   contents: write
