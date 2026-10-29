@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pillow
-      - run: python tools/fetch_pictures.py
+      - run: python tools/fetch_pictures.py --alts
       - name: Сохранить в репозиторий
         run: |
           git config user.name "github-actions[bot]"

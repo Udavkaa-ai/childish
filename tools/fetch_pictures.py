@@ -61,7 +61,59 @@ def pick(word: str):
     return None, []
 
 
+# Слова, где первая картинка не подошла или не нашлась: качаем варианты, выбираем глазами.
+ALTS = {
+    "мышка": ["мышь", "мышка"], "рак": ["рак", "раки"], "ведро": ["ведро", "ведёрко"],
+    "конь": ["лошадь", "конь"], "очки": ["очки"], "пила": ["пила", "ножовка"], "пони": ["пони"],
+    "зима": ["зима", "снег"], "осьминог": ["осьминог"], "морковка": ["морковь"], "индюк": ["индюк", "индейка"],
+    "ёжик": ["ёж", "еж"], "эскимо": ["мороженое"], "цирк": ["цирк"], "паук": ["паук"], "зайка": ["заяц", "кролик"],
+    "вагон": ["вагон", "поезд"], "земляника": ["клубника", "земляника"], "щенок": ["щенок"], "хомяк": ["хомяк"],
+}
+
+
+def alternatives():
+    alt = OUT / "alt"
+    alt.mkdir(parents=True, exist_ok=True)
+    found = {}
+    for word, queries in ALTS.items():
+        ids = []
+        for q in queries:
+            res = get_json(f"{API}/search/{urllib.parse.quote(q)}")
+            ids += [p["_id"] for p in res if not p.get("sex") and not p.get("violence")][:6]
+        for pid in list(dict.fromkeys(ids))[:8]:
+            req = urllib.request.Request(STATIC.format(id=pid), headers={"User-Agent": "nika-abc/1.0"})
+            try:
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    (alt / f"{word}__{pid}.png").write_bytes(r.read())
+                found.setdefault(word, []).append(pid)
+            except Exception as e:
+                print(f"  не скачалась {word} {pid}: {e}", file=sys.stderr)
+            time.sleep(0.15)
+    (OUT / "alt.json").write_text(json.dumps(found, ensure_ascii=False, indent=1), encoding="utf-8")
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+    except OSError:
+        font = ImageFont.load_default()
+    cell, cols = 170, 8
+    words = list(found)
+    for n in range(0, len(words), 5):
+        chunk = words[n:n + 5]
+        sheet = Image.new("RGB", (cols * cell, len(chunk) * (cell + 30)), "white")
+        d = ImageDraw.Draw(sheet)
+        for r, w in enumerate(chunk):
+            for c, pid in enumerate(found[w][:cols]):
+                x, y = c * cell, r * (cell + 30)
+                im = Image.open(alt / f"{w}__{pid}.png").convert("RGBA").resize((cell - 16, cell - 16))
+                bg = Image.new("RGBA", im.size, "white")
+                sheet.paste(Image.alpha_composite(bg, im).convert("RGB"), (x + 8, y + 4))
+                d.text((x + cell // 2, y + cell + 10), f"{w} {pid}", fill="black", font=font, anchor="mm")
+        sheet.save(OUT / f"alt_{n // 5 + 1}.png")
+
+
 def main():
+    if "--alts" in sys.argv:
+        alternatives()
+        return
     PNG.mkdir(parents=True, exist_ok=True)
     index = {}
     for w in words():
