@@ -104,6 +104,8 @@ data class AppData(
     val mathLessons: List<MathLesson> = emptyList(),
     val mathTopics: Map<String, TopicStats> = emptyMap(),
     val badMath: Set<String> = emptySet(),
+    /** Буквы младшей: сколько букв букваря уже пройдено (по порядку Жуковой). */
+    val abcLearned: Int = 0,
 ) {
     /** Все упражнения темы: встроенные и придуманные нейросетью. */
     fun drillsOf(topicId: String): List<Drill> =

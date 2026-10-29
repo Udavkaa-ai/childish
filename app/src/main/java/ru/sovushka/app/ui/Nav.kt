@@ -70,6 +70,9 @@ sealed interface Screen {
     data class MathLessonPage(val id: String) : Screen, MathScreen
     data object YoungerMath : Screen, MathScreen
     data class YoungerMathGame(val kind: String, val run: Long = System.nanoTime()) : Screen, MathScreen
+    data object Abc : Screen
+    /** Урок буквы с номером index или повторение (index = -1). */
+    data class AbcLesson(val index: Int, val run: Long = System.nanoTime()) : Screen
 }
 
 /** Отметка экранов математики. */
@@ -80,7 +83,8 @@ val Screen.isMath: Boolean get() = this is MathScreen || (this is Screen.Tutor &
 /** Экраны младшей: она не читает, поэтому там Ника говорит всегда. */
 val Screen.isYounger: Boolean
     get() = this is Screen.YoungerHome || this is Screen.YoungerPack || this is Screen.YoungerGame ||
-        this is Screen.YoungerMath || this is Screen.YoungerMathGame || (this is Screen.SubjectChoice && !older)
+        this is Screen.YoungerMath || this is Screen.YoungerMathGame || this is Screen.Abc || this is Screen.AbcLesson ||
+        (this is Screen.SubjectChoice && !older)
 
 /** Где показывать кнопку «сколько говорит Ника». */
 val Screen.hasTalkToggle: Boolean
@@ -257,5 +261,7 @@ private fun ScreenContent(vm: AppViewModel, s: Screen) {
             is Screen.MathLessonPage -> MathLessonScreen(vm, s.id)
             Screen.YoungerMath -> YoungerMathScreen(vm)
             is Screen.YoungerMathGame -> YoungerMathGameScreen(vm, s)
+            Screen.Abc -> AbcHomeScreen(vm)
+            is Screen.AbcLesson -> AbcLessonScreen(vm, s)
     }
 }

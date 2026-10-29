@@ -81,7 +81,7 @@ fun SubjectChoiceScreen(vm: AppViewModel, older: Boolean) {
     val prefs by g.settings.prefs.collectAsState()
     val talking by g.speaker.speaking.collectAsState()
     val name = if (older) prefs.olderName else prefs.youngerName
-    val hello = "$name, чем займёмся? Английским или математикой?"
+    val hello = if (older) "$name, чем займёмся? Английским или математикой?" else "$name, чем займёмся? Английским, счётом или буквами?"
     // Заставку с Никой сами показываем один раз (и не в режиме «молчу» у старшей), дальше — по кнопке ▶.
     val autoIntro = remember { !g.settings.value.introSeen && (!older || g.settings.value.talk != Prefs.TALK_SILENT) }
     LaunchedEffect(Unit) { if (!autoIntro) g.speaker.say(hello) }
@@ -102,6 +102,12 @@ fun SubjectChoiceScreen(vm: AppViewModel, older: Boolean) {
                     "Математика", if (older) "Учебник Моро, программа 3–4 класса" else "Считаем до 20",
                     MathPalette.primary, NikaOutfit.STRICT, appear = 1,
                 ) { vm.go(if (older) Screen.MathHome else Screen.YoungerMath) }
+                if (!older) {
+                    SubjectCard(
+                        "Буквы", "Учимся читать по букварю",
+                        Brush.linearGradient(listOf(Color(0xD9FF9A3C), Color(0xD9F25C8A))), NikaOutfit.CASUAL, appear = 2,
+                    ) { vm.go(Screen.Abc) }
+                }
             }
         }
     }
