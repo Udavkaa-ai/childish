@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -87,6 +89,21 @@ private fun AbcText(text: String, size: TextUnit, modifier: Modifier = Modifier)
             text.forEach { ch -> withStyle(SpanStyle(color = colorOf(ch))) { append(ch) } }
         },
         fontSize = size, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, modifier = modifier,
+    )
+}
+
+/** Картинка к слову: рисунок ARASAAC, а если его нет — эмодзи-наклейка. */
+@Composable
+private fun AbcPicture(pic: Abc.Pic, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    val res = ABC_PICTURES[pic.word.lowercase()]
+    if (res == null) {
+        Sticker(pic.emoji, size, seed = pic.word.hashCode(), modifier = modifier)
+        return
+    }
+    androidx.compose.foundation.Image(
+        androidx.compose.ui.res.painterResource(res), pic.word,
+        modifier.size(size).clip(RoundedCornerShape(size * 0.22f)).background(Color.White).padding(size * 0.06f),
+        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
     )
 }
 
@@ -177,7 +194,7 @@ fun AbcHomeScreen(vm: AppViewModel) {
                         repeat(6 - chunk.size) { Box(Modifier.weight(1f)) }
                     }
                 }
-                Hint("Порядок букв — как в букваре Н. С. Жуковой: гласные красные, согласные синие. Сначала буква, потом слоги «паровозиком», потом слова.")
+                Hint("Порядок букв — как в букваре Н. С. Жуковой: гласные красные, согласные синие. Сначала буква, потом слоги «паровозиком», потом слова. Картинки — ARASAAC (Правительство Арагона, автор Серхио Палао), CC BY-NC-SA.")
             }
         }
     }
@@ -292,7 +309,7 @@ private fun MeetLetter(g: AppGraph, task: Abc.Task.Meet, talking: Boolean, onNex
     ) { AbcText(l.pair, 150.sp) }
     if (pic != null) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Sticker(pic.emoji, 90.dp, modifier = Modifier.clickable { g.speaker.speak(pic.word) })
+            AbcPicture(pic, 110.dp, Modifier.clickable { g.speaker.speak(pic.word) })
             AbcText(pic.word.uppercase(), 34.sp)
         }
     }
@@ -488,7 +505,7 @@ private fun PictureChoice(
                         }
                     },
                 contentAlignment = Alignment.Center,
-            ) { Sticker(p.emoji, 76.dp, seed = p.word.hashCode()) }
+            ) { AbcPicture(p, 92.dp) }
         }
     }
 }
